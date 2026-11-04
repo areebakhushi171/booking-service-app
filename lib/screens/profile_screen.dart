@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
 import '../utils/validators.dart';
+import 'auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -91,6 +92,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'BookEase is a portfolio-grade, production-quality Service Booking Mobile and Tablet App engineered in Flutter 3.x (Dart 3, Material 3).\n\nFeatures include smart scheduling without slot overlaps, resilient offline caching, live notifications, and adaptive navigation.',
         ),
       ],
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out of BookEase?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await context.read<UserProvider>().logout();
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthScreen()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -225,6 +256,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: const Text('Version 1.0.0 • Architecture & Credits'),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => _showAboutDialog(context),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Logout Card
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                title: const Text(
+                  'Log Out',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: const Text('Sign out of your account'),
+                onTap: () => _showLogoutDialog(context),
               ),
             ),
           ],

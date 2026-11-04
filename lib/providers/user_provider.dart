@@ -72,4 +72,10 @@ class UserProvider extends ChangeNotifier {
     );
     notifyListeners();
   }
+
+  Future<void> logout() async {
+    _user = _user.copyWith(hasCompletedOnboarding: false);
+    notifyListeners();
+    await _storageService.saveHasCompletedOnboarding(false);
+  }
 }
