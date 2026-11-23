@@ -1,3 +1,4 @@
+
 name: bookease
 description: "BookEase - Premium Service Booking Mobile and Tablet App in Flutter 3.x with Material 3."
 publish_to: 'none'
@@ -10,15 +11,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
 
   # State Management
   provider: ^6.1.2
+  flutter_screenutil: ^5.9.3
 
   # Fonts & Icons
   google_fonts: ^6.2.1
-  flutter_svg: ^2.0.10+1
 
   # Local Persistence & Storage
   shared_preferences: ^2.2.3
@@ -37,7 +36,6 @@ dependencies:
   cached_network_image: ^3.3.1
   shimmer: ^3.0.0
   share_plus: ^9.0.0
-  uuid: ^4.4.0
 
 dev_dependencies:
   flutter_test:
@@ -46,6 +44,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/images/
-    - assets/icons/
