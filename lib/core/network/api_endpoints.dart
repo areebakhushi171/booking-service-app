@@ -9,6 +9,12 @@ class ApiEndpoints {
   static const String me = '/users/me';
   static const String changePassword = '/users/change-password';
 
+  // Image Uploads
+  static const String uploadImage = '/upload/image';
+  static const String upload = '/upload';
+  static const String userAvatar = '/users/me/avatar';
+  static const String uploadServiceImage = '/properties/image';
+
   // Properties (Services in Flutter)
   static const String properties = '/properties';
   static String propertyById(String id) => '/properties/$id';

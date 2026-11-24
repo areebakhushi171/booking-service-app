@@ -1,73 +1,98 @@
 import 'dart:async';
-import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
 import 'package:bookease/core/network/api_response.dart';
 import 'package:bookease/core/network/network_config.dart';
 import 'package:bookease/core/network/network_exceptions.dart';
 import 'package:bookease/core/storage/token_storage.dart';
 
-/// Reusable REST client: base URL, JSON, Bearer token, timeouts and error mapping.
+/// Reusable REST client using Dio: base URL, JSON, Bearer token, timeouts and error mapping.
 /// Only used when NetworkConfig.useRemoteBackend is true.
 class ApiClient {
-  final http.Client _http;
+  late final Dio _dio;
   final TokenStorage _tokens;
 
   /// Called when the API answers 401 (e.g. to force logout).
   void Function()? onUnauthorized;
 
-  ApiClient(this._tokens, {http.Client? client}) : _http = client ?? http.Client();
+  ApiClient(this._tokens, {Dio? customDio}) {
+    if (customDio != null) {
+      _dio = customDio;
+    } else {
+      _dio = Dio(
+        BaseOptions(
+          baseUrl: _normalizeBaseUrl(NetworkConfig.baseUrl),
+          connectTimeout: NetworkConfig.connectTimeout,
+          receiveTimeout: NetworkConfig.receiveTimeout,
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          responseType: ResponseType.json,
+        ),
+      );
 
-  Future<ApiResponse> get(String path, {Map<String, String>? query}) =>
-      _send('GET', path, query: query);
-
-  Future<ApiResponse> post(String path, {Object? body}) =>
-      _send('POST', path, body: body);
-
-  Future<ApiResponse> put(String path, {Object? body}) =>
-      _send('PUT', path, body: body);
-
-  Future<ApiResponse> patch(String path, {Object? body}) =>
-      _send('PATCH', path, body: body);
-
-  Future<ApiResponse> delete(String path) => _send('DELETE', path);
-
-  Uri _uri(String path, Map<String, String>? query) {
-    final base = NetworkConfig.baseUrl.endsWith('/')
-        ? NetworkConfig.baseUrl.substring(0, NetworkConfig.baseUrl.length - 1)
-        : NetworkConfig.baseUrl;
-    return Uri.parse('$base$path').replace(queryParameters: query);
-  }
-
-  Map<String, String> _headers() {
-    final token = _tokens.readToken();
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
-  }
-
-  Object? _sanitizeBody(Object? body) {
-    if (body == null) return null;
-    if (body is Map) {
-      final sanitized = Map<String, dynamic>.from(body);
-      for (final key in ['password', 'currentPassword', 'newPassword', 'token', 'accessToken', 'authorization']) {
-        if (sanitized.containsKey(key)) {
-          sanitized[key] = '***REDACTED***';
-        }
-      }
-      return sanitized;
+      _setupInterceptors();
     }
-    return body;
   }
 
-  dynamic _sanitizeResponse(dynamic decoded) {
-    if (decoded is Map) {
-      final sanitized = Map<String, dynamic>.from(decoded);
-      for (final key in ['token', 'accessToken', 'password']) {
+  Dio get dio => _dio;
+
+  static String _normalizeBaseUrl(String url) {
+    if (url.endsWith('/')) {
+      return url.substring(0, url.length - 1);
+    }
+    return url;
+  }
+
+  void _setupInterceptors() {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final token = _tokens.readToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+
+          if (kDebugMode) {
+            debugPrint('🌐 [API REQ] ${options.method} ${options.uri}');
+            debugPrint('⏱️ [TIMESTAMP] ${DateTime.now()}');
+            if (options.data != null) {
+              debugPrint('📦 [REQ BODY] ${_sanitizeData(options.data)}');
+            }
+          }
+
+          return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          if (kDebugMode) {
+            debugPrint('📥 [API RES] ${response.requestOptions.method} ${response.requestOptions.uri}');
+            debugPrint('🔢 [STATUS] ${response.statusCode}');
+            if (response.data != null) {
+              debugPrint('📄 [RES BODY] ${_sanitizeData(response.data)}');
+            }
+          }
+          return handler.next(response);
+        },
+        onError: (DioException err, handler) {
+          if (kDebugMode) {
+            debugPrint('❌ [API ERROR] ${err.requestOptions.method} ${err.requestOptions.uri} - ${err.type}: ${err.message}');
+            if (err.response?.data != null) {
+              debugPrint('📄 [ERROR RES] ${_sanitizeData(err.response?.data)}');
+            }
+          }
+          return handler.next(err);
+        },
+      ),
+    );
+  }
+
+  dynamic _sanitizeData(dynamic data) {
+    if (data is Map) {
+      final sanitized = Map<String, dynamic>.from(data);
+      for (final key in ['password', 'currentPassword', 'newPassword', 'token', 'accessToken', 'authorization']) {
         if (sanitized.containsKey(key)) {
           sanitized[key] = '***REDACTED***';
         }
@@ -81,101 +106,173 @@ class ApiClient {
       }
       return sanitized;
     }
-    return decoded;
+    return data;
   }
 
-  Future<ApiResponse> _send(
+  Future<ApiResponse> get(
+    String path, {
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+    Options? options,
+  }) =>
+      _request('GET', path, queryParameters: query, cancelToken: cancelToken, options: options);
+
+  Future<ApiResponse> post(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+    Options? options,
+  }) =>
+      _request('POST', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+
+  Future<ApiResponse> put(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+    Options? options,
+  }) =>
+      _request('PUT', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+
+  Future<ApiResponse> patch(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+    Options? options,
+  }) =>
+      _request('PATCH', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+
+  Future<ApiResponse> delete(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+    CancelToken? cancelToken,
+    Options? options,
+  }) =>
+      _request('DELETE', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+
+  /// Upload a single file via multipart/form-data.
+  Future<ApiResponse> uploadFile(
+    String path, {
+    required String filePath,
+    String fieldName = 'file',
+    Map<String, dynamic>? extraFields,
+    ProgressCallback? onSendProgress,
+    CancelToken? cancelToken,
+    Options? options,
+  }) async {
+    final fileName = filePath.split('/').last;
+    final formData = FormData.fromMap({
+      fieldName: await MultipartFile.fromFile(filePath, filename: fileName),
+      if (extraFields != null) ...extraFields,
+    });
+
+    return _request(
+      'POST',
+      path,
+      body: formData,
+      onSendProgress: onSendProgress,
+      cancelToken: cancelToken,
+      options: options,
+    );
+  }
+
+  /// Upload multiple files via multipart/form-data.
+  Future<ApiResponse> uploadMultipleFiles(
+    String path, {
+    required List<String> filePaths,
+    String fieldName = 'files',
+    Map<String, dynamic>? extraFields,
+    ProgressCallback? onSendProgress,
+    CancelToken? cancelToken,
+    Options? options,
+  }) async {
+    final multipartFiles = <MultipartFile>[];
+    for (final p in filePaths) {
+      final fileName = p.split('/').last;
+      multipartFiles.add(await MultipartFile.fromFile(p, filename: fileName));
+    }
+
+    final formData = FormData.fromMap({
+      fieldName: multipartFiles,
+      if (extraFields != null) ...extraFields,
+    });
+
+    return _request(
+      'POST',
+      path,
+      body: formData,
+      onSendProgress: onSendProgress,
+      cancelToken: cancelToken,
+      options: options,
+    );
+  }
+
+  Future<ApiResponse> _request(
     String method,
     String path, {
     Object? body,
-    Map<String, String>? query,
+    Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    Options? options,
+    ProgressCallback? onSendProgress,
   }) async {
-    final uri = _uri(path, query);
-    final request = http.Request(method, uri)
-      ..headers.addAll(_headers());
-    if (body != null) request.body = jsonEncode(body);
-
-    final startTime = DateTime.now();
-    final stopwatch = Stopwatch()..start();
-
-    if (kDebugMode) {
-      debugPrint('🌐 [API REQ] $method $uri');
-      debugPrint('⏱️ [TIMESTAMP] $startTime');
-      if (body != null) {
-        debugPrint('📦 [REQ BODY] ${jsonEncode(_sanitizeBody(body))}');
-      }
-    }
-
     try {
-      final streamed = await _http
-          .send(request)
-          .timeout(NetworkConfig.connectTimeout + NetworkConfig.receiveTimeout);
-      final response = await http.Response.fromStream(streamed);
-      stopwatch.stop();
+      final response = await _dio.request<dynamic>(
+        path,
+        data: body,
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+        onSendProgress: onSendProgress,
+        options: (options ?? Options()).copyWith(method: method),
+      );
 
-      if (kDebugMode) {
-        debugPrint('📥 [API RES] $method $uri');
-        debugPrint('🔢 [STATUS] ${response.statusCode}');
-        debugPrint('⏱️ [DURATION] ${stopwatch.elapsedMilliseconds}ms');
-        if (response.body.isNotEmpty) {
-          try {
-            final decoded = jsonDecode(response.body);
-            debugPrint('📄 [RES BODY] ${jsonEncode(_sanitizeResponse(decoded))}');
-          } catch (_) {
-            debugPrint('📄 [RES BODY] ${response.body}');
-          }
-        }
-      }
-
-      return _handle(response);
-    } on TimeoutException catch (e) {
-      stopwatch.stop();
-      if (kDebugMode) {
-        debugPrint('❌ [API ERROR] $method $uri - Timeout after ${stopwatch.elapsedMilliseconds}ms: $e');
-      }
-      throw const RequestTimeoutException();
-    } on http.ClientException catch (e) {
-      stopwatch.stop();
-      if (kDebugMode) {
-        debugPrint('❌ [API ERROR] $method $uri - ClientException after ${stopwatch.elapsedMilliseconds}ms: $e');
-      }
-      throw const NoConnectionException();
+      return ApiResponse(response.statusCode ?? 200, response.data);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     } catch (e) {
-      stopwatch.stop();
-      if (kDebugMode) {
-        debugPrint('❌ [API ERROR] $method $uri - Exception after ${stopwatch.elapsedMilliseconds}ms: $e');
-      }
-      rethrow;
+      if (e is NetworkException) rethrow;
+      throw ServerException(e.toString());
     }
   }
 
-  ApiResponse _handle(http.Response response) {
-    dynamic decoded;
-    if (response.body.isNotEmpty) {
-      try {
-        decoded = jsonDecode(response.body);
-      } catch (_) {
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          throw const ParseException();
-        }
-      }
+  NetworkException _handleDioError(DioException error) {
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout) {
+      return const RequestTimeoutException();
     }
 
-    final code = response.statusCode;
-    if (code >= 200 && code < 300) return ApiResponse(code, decoded);
+    if (error.type == DioExceptionType.connectionError) {
+      return const NoConnectionException();
+    }
 
-    final message = decoded is Map && decoded['message'] is String
-        ? decoded['message'] as String
-        : null;
+    final response = error.response;
+    if (response == null) {
+      return const NoConnectionException();
+    }
+
+    final code = response.statusCode ?? 500;
+    final data = response.data;
+
+    String? message;
+    if (data is Map && data['message'] is String) {
+      message = data['message'] as String;
+    }
 
     if (code == 401) {
       onUnauthorized?.call();
-      throw UnauthorizedException(message ?? 'Your session has expired. Please log in again.');
+      return UnauthorizedException(message ?? 'Your session has expired. Please log in again.');
     }
+
     if (code >= 500) {
-      throw ServerException(
+      return ServerException(
           message ?? 'Something went wrong on our side. Please try again later.', code);
     }
-    throw BadRequestException(message ?? 'Request failed ($code).', statusCode: code);
+
+    return BadRequestException(message ?? 'Request failed ($code).', statusCode: code);
   }
 }
+

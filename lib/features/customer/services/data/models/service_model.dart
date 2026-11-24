@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Service model representing catalog offerings across Salon, Wellness, Home, Tutoring, Health, Auto
 class ServiceModel {
   final String id;
@@ -58,6 +60,55 @@ class ServiceModel {
   }
 
   factory ServiceModel.fromJson(Map<String, dynamic> json) {
+    final rawImg = json['imageUrl'] ?? json['image'] ?? json['mainImage'] ?? '';
+    String imgUrl = '';
+    if (rawImg is String) {
+      imgUrl = rawImg.trim();
+    } else if (rawImg is Map && rawImg['url'] is String) {
+      imgUrl = (rawImg['url'] as String).trim();
+    } else if (json['images'] is List && (json['images'] as List).isNotEmpty) {
+      imgUrl = json['images'][0].toString().trim();
+    }
+
+    List<String> gallery = [];
+    final rawGallery = json['galleryImages'] ??
+        json['images'] ??
+        json['photos'] ??
+        json['gallery'] ??
+        json['existingGalleryImages'] ??
+        json['imageUrls'];
+
+    if (rawGallery is List) {
+      gallery = rawGallery
+          .map((e) {
+            if (e is String) return e.trim();
+            if (e is Map && e['url'] is String) return (e['url'] as String).trim();
+            return e.toString().trim();
+          })
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } else if (rawGallery is String && rawGallery.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawGallery);
+        if (decoded is List) {
+          gallery = decoded
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+      } catch (_) {
+        gallery = rawGallery
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+    }
+
+    if (imgUrl.isEmpty && gallery.isNotEmpty) {
+      imgUrl = gallery.first;
+    }
+
     return ServiceModel(
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       name: (json['name'] ?? json['title'] ?? '').toString(),
@@ -67,11 +118,8 @@ class ServiceModel {
       durationMinutes: _parseInt(json['durationMinutes'] ?? json['duration'], 60),
       country: (json['country'] ?? 'Pakistan').toString(),
       city: (json['city'] ?? 'Karachi').toString(),
-      imageUrl: (json['imageUrl'] ?? (json['images'] is List && (json['images'] as List).isNotEmpty ? json['images'][0] : '')).toString(),
-      galleryImages: (json['galleryImages'] ?? json['images'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      imageUrl: imgUrl,
+      galleryImages: gallery,
       features: (json['features'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??

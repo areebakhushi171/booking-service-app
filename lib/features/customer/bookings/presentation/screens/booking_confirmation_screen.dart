@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:bookease/features/customer/bookings/data/models/booking_model.dart';
+import 'package:bookease/core/constants/app_colors.dart';
+import 'package:bookease/core/widgets/circle_action_button.dart';
 import 'package:bookease/core/widgets/custom_button.dart';
+import 'package:bookease/core/widgets/ui_kit.dart';
+import 'package:bookease/features/customer/bookings/data/models/booking_model.dart';
 import 'package:bookease/features/customer/presentation/screens/main_navigation_screen.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
@@ -16,8 +19,9 @@ class BookingConfirmationScreen extends StatefulWidget {
 }
 
 class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _animController;
+  late AnimationController _ringController;
   late Animation<double> _scaleAnimation;
 
   @override
@@ -30,11 +34,17 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
     _scaleAnimation =
         CurvedAnimation(parent: _animController, curve: Curves.elasticOut);
     _animController.forward();
+
+    _ringController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
   }
 
   @override
   void dispose() {
     _animController.dispose();
+    _ringController.dispose();
     super.dispose();
   }
 
@@ -48,10 +58,67 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   void _addToCalendar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.teal.shade800,
         content: Text(
           'Appointment synced: ${widget.booking.serviceName} on ${widget.booking.bookingDate} at ${widget.booking.startTime}.',
         ),
+      ),
+    );
+  }
+
+  Widget _successBadge() {
+    final size = 92.r;
+    return SizedBox(
+      width: size * 2.1,
+      height: size * 2.1,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          for (final phase in [0.0, 0.5])
+            AnimatedBuilder(
+              animation: _ringController,
+              builder: (_, __) {
+                final t = (_ringController.value + phase) % 1.0;
+                return Container(
+                  width: size * (1 + t * 1.0),
+                  height: size * (1 + t * 1.0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.success.withAlpha(((1 - t) * 90).toInt()),
+                      width: 2,
+                    ),
+                  ),
+                );
+              },
+            ),
+          Container(
+            width: size * 1.25,
+            height: size * 1.25,
+            decoration: BoxDecoration(
+              color: AppColors.success.withAlpha(35),
+              shape: BoxShape.circle,
+            ),
+          ),
+          ScaleTransition(
+            scale: _scaleAnimation,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.success.withAlpha(100),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Icon(Icons.check_rounded, size: 54.sp, color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -67,7 +134,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
         if (!didPop) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-            (route) => false,
+                (route) => false,
           );
         }
       },
@@ -75,43 +142,18 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Success animated checkmark
-                    ScaleTransition(
-                      scale: _scaleAnimation,
-                      child: Container(
-                        width: 90.w,
-                        height: 90.h,
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade500,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.green.withAlpha(100),
-                              blurRadius: 18,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.check_rounded,
-                          size: 54.sp,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 24.h),
-
+                    _successBadge(),
+                    SizedBox(height: 8.h),
                     Text(
                       'Booking Confirmed!',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: theme.textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: 8.h),
                     Text(
@@ -123,62 +165,62 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                     ),
                     SizedBox(height: 24.h),
 
-                    // Booking Reference Badge
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 16.w, vertical: 10.h),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withAlpha(20),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withAlpha(60),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.confirmation_number_outlined,
-                              size: 18.sp),
-                          SizedBox(width: 8.w),
-                          Text(
-                            'Booking ID: ${booking.id}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15.sp,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 24.h),
-
-                    // Appointment Summary Card
-                    Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(18.r),
-                        child: Column(
+                    // Ticket
+                    FadeSlideIn(
+                      index: 2,
+                      child: _TicketCard(
+                        notchColor: theme.scaffoldBackgroundColor,
+                        top: Column(
                           children: [
-                            _buildSummaryRow(
-                                'Service', booking.serviceName, isBold: true),
-                            Divider(height: 20.h),
-                            _buildSummaryRow(
-                                'Scheduled Date', booking.bookingDate),
-                            SizedBox(height: 8.h),
-                            _buildSummaryRow('Time Slot',
+                            Row(
+                              children: [
+                                Icon(Icons.confirmation_number_outlined,
+                                    size: 18.sp,
+                                    color: theme.colorScheme.primary),
+                                SizedBox(width: 8.w),
+                                Expanded(
+                                  child: Text(
+                                    'Booking ID: ${booking.id}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15.sp,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                CircleActionButton(
+                                  icon: Icons.copy_rounded,
+                                  tooltip: 'Copy booking ID',
+                                  size: 36.r,
+                                  onPressed: () => copyToClipboard(
+                                      context, booking.id,
+                                      message: 'Booking ID copied'),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 14.h),
+                            _row('Service', booking.serviceName, bold: true),
+                            SizedBox(height: 10.h),
+                            _row('Scheduled Date', booking.bookingDate),
+                            SizedBox(height: 10.h),
+                            _row('Time Slot',
                                 '${booking.startTime} - ${booking.endTime}'),
-                            SizedBox(height: 8.h),
-                            _buildSummaryRow('Duration',
-                                '${booking.durationMinutes} minutes'),
-                            Divider(height: 20.h),
-                            _buildSummaryRow('Customer', booking.customerName),
-                            SizedBox(height: 8.h),
-                            _buildSummaryRow('Contact', booking.customerPhone),
-                            Divider(height: 20.h),
-                            _buildSummaryRow(
+                            SizedBox(height: 10.h),
+                            _row('Duration', '${booking.durationMinutes} minutes'),
+                          ],
+                        ),
+                        bottom: Column(
+                          children: [
+                            _row('Customer', booking.customerName),
+                            SizedBox(height: 10.h),
+                            _row('Contact', booking.customerPhone),
+                            SizedBox(height: 14.h),
+                            _row(
                               'Total Amount',
                               'Rs ${booking.servicePrice.toStringAsFixed(0)}',
-                              isHighlight: true,
+                              highlight: true,
                             ),
                           ],
                         ),
@@ -186,31 +228,29 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                     ),
                     SizedBox(height: 24.h),
 
-                    // Add to Calendar and Share Buttons
+                    // Circular quick actions
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(
-                          child: CustomButton(
-                            label: 'Add to Calendar',
-                            icon: Icons.event_available_rounded,
-                            isOutlined: true,
-                            onPressed: _addToCalendar,
-                          ),
+                        CircleActionButton(
+                          icon: Icons.event_available_rounded,
+                          tooltip: 'Add to calendar',
+                          label: 'Calendar',
+                          size: 56.r,
+                          onPressed: _addToCalendar,
                         ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: CustomButton(
-                            label: 'Share Summary',
-                            icon: Icons.share_rounded,
-                            isOutlined: true,
-                            onPressed: _shareBooking,
-                          ),
+                        SizedBox(width: 36.w),
+                        CircleActionButton(
+                          icon: Icons.share_rounded,
+                          tooltip: 'Share summary',
+                          label: 'Share',
+                          size: 56.r,
+                          onPressed: _shareBooking,
                         ),
                       ],
                     ),
-                    SizedBox(height: 14.h),
+                    SizedBox(height: 24.h),
 
-                    // Go to My Bookings CTA
                     SizedBox(
                       width: double.infinity,
                       child: CustomButton(
@@ -219,9 +259,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
                               builder: (_) =>
-                                  const MainNavigationScreen(initialIndex: 1),
+                              const MainNavigationScreen(initialIndex: 1),
                             ),
-                            (route) => false,
+                                (route) => false,
                           );
                         },
                       ),
@@ -236,11 +276,11 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
     );
   }
 
-  Widget _buildSummaryRow(String label, String value,
-      {bool isBold = false, bool isHighlight = false}) {
+  Widget _row(String label, String value,
+      {bool bold = false, bool highlight = false}) {
     final theme = Theme.of(context);
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -248,21 +288,97 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
             color: theme.colorScheme.onSurface.withAlpha(150),
           ),
         ),
+        SizedBox(width: 12.w),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontWeight:
-                  isBold || isHighlight ? FontWeight.bold : FontWeight.w500,
-              fontSize: isHighlight ? 16 : 14,
-              color: isHighlight
+              fontWeight: bold || highlight ? FontWeight.bold : FontWeight.w600,
+              fontSize: highlight ? 18.sp : 14.sp,
+              color: highlight
                   ? theme.colorScheme.primary
                   : theme.colorScheme.onSurface,
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Ticket-style card: two sections split by a dashed line with side notches.
+class _TicketCard extends StatelessWidget {
+  final Widget top;
+  final Widget bottom;
+  final Color notchColor;
+
+  const _TicketCard({
+    required this.top,
+    required this.bottom,
+    required this.notchColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final r = 12.r;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(22.r),
+        border: Border.all(color: theme.colorScheme.onSurface.withAlpha(20)),
+      ),
+      child: Column(
+        children: [
+          Padding(padding: EdgeInsets.fromLTRB(18.r, 18.r, 18.r, 8.r), child: top),
+          SizedBox(
+            height: r * 2,
+            child: Row(
+              children: [
+                Transform.translate(
+                  offset: Offset(-r, 0),
+                  child: Container(
+                    width: r * 2,
+                    height: r * 2,
+                    decoration:
+                    BoxDecoration(color: notchColor, shape: BoxShape.circle),
+                  ),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (_, c) {
+                      final n = (c.maxWidth / 9).floor();
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(
+                          n,
+                              (_) => Container(
+                            width: 5,
+                            height: 1.6,
+                            color: theme.colorScheme.onSurface.withAlpha(50),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(r, 0),
+                  child: Container(
+                    width: r * 2,
+                    height: r * 2,
+                    decoration:
+                    BoxDecoration(color: notchColor, shape: BoxShape.circle),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(padding: EdgeInsets.fromLTRB(18.r, 8.r, 18.r, 18.r), child: bottom),
+        ],
+      ),
     );
   }
 }

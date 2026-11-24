@@ -1,10 +1,10 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'package:bookease/features/customer/services/data/models/service_model.dart';
 import 'package:bookease/features/customer/services/data/repositories/service_repository.dart';
 
 /// State for the provider panel's "My Services" tab.
-/// Talks only to [ServiceRepository] (local today, REST later).
 class ProviderServicesProvider extends ChangeNotifier {
   final ServiceRepository _repository;
 
@@ -35,13 +35,28 @@ class ProviderServicesProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> save(ServiceModel service) async {
-    await _repository.saveProviderService(service);
+  Future<void> save(
+    ServiceModel service, {
+    File? mainImageFile,
+    List<File>? galleryFiles,
+    List<String>? existingGalleryUrls,
+  }) async {
+    await _repository.saveProviderService(
+      service,
+      mainImageFile: mainImageFile,
+      galleryFiles: galleryFiles,
+      existingGalleryUrls: existingGalleryUrls,
+    );
     await _reload();
   }
 
   Future<void> delete(String serviceId) async {
     await _repository.deleteProviderService(serviceId);
+    await _reload();
+  }
+
+  Future<void> deleteImages(String propertyId, List<String> imageUrls) async {
+    await _repository.deleteServiceImages(propertyId, imageUrls);
     await _reload();
   }
 

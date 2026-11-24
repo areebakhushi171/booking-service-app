@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:bookease/core/constants/app_sizes.dart';
-import 'package:bookease/core/theme/app_decorations.dart';
 
 /// Small summary tile used on the provider dashboard.
 class StatCard extends StatelessWidget {
@@ -22,39 +21,64 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: EdgeInsets.all(AppSizes.s16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppSizes.radiusL),
-        border: Border.all(color: theme.colorScheme.onSurface.withAlpha(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: EdgeInsets.all(8.r),
-            decoration: AppDecorations.tintedIconBox(color, radius: 12.r),
-            child: Icon(icon, color: color, size: 20.sp),
-          ),
-          SizedBox(height: AppSizes.s12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22.r),
+      child: Container(
+        padding: EdgeInsets.all(AppSizes.s16),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(22.r),
+          border: Border.all(color: theme.colorScheme.onSurface.withAlpha(20)),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -34.r,
+              top: -34.r,
+              child: Container(
+                width: 84.r,
+                height: 84.r,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(18),
+                  shape: BoxShape.circle,
+                ),
+              ),
             ),
-          ),
-          SizedBox(height: 2.h),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withAlpha(150),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42.r,
+                  height: 42.r,
+                  decoration: BoxDecoration(
+                    color: color.withAlpha(30),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 21.sp),
+                ),
+                SizedBox(height: AppSizes.s12),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: theme.textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SizedBox(height: 2.h),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withAlpha(150),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

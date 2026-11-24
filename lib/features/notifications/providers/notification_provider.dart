@@ -10,8 +10,10 @@ class NotificationProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  NotificationProvider(this._repository) {
-    loadNotifications();
+  NotificationProvider(this._repository, {bool loadOnStart = true}) {
+    if (loadOnStart) {
+      loadNotifications();
+    }
   }
 
   List<NotificationModel> get notifications => _notifications;
@@ -67,6 +69,15 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.deleteNotification(id);
+    } catch (_) {}
+  }
+
+  Future<void> deleteAllNotifications() async {
+    _locallyReadIds.clear();
+    _notifications.clear();
+    notifyListeners();
+    try {
+      await _repository.deleteAllNotifications();
     } catch (_) {}
   }
 }

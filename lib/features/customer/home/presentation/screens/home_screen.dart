@@ -7,6 +7,8 @@ import 'package:bookease/core/constants/app_sizes.dart';
 import 'package:bookease/core/widgets/category_chip.dart';
 import 'package:bookease/core/widgets/empty_state_view.dart';
 import 'package:bookease/core/widgets/shimmer_loading.dart';
+import 'package:bookease/core/widgets/ui_kit.dart';
+import 'package:bookease/core/widgets/user_avatar.dart';
 import 'package:bookease/features/auth/providers/auth_provider.dart';
 import 'package:bookease/features/customer/favorites/presentation/screens/favorites_screen.dart';
 import 'package:bookease/features/customer/favorites/providers/favorites_provider.dart';
@@ -21,7 +23,7 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   static const SliverGridDelegate _gridDelegate =
-      SliverGridDelegateWithMaxCrossAxisExtent(
+  SliverGridDelegateWithMaxCrossAxisExtent(
     maxCrossAxisExtent: 340,
     mainAxisSpacing: 16,
     crossAxisSpacing: 16,
@@ -45,25 +47,17 @@ class HomeScreen extends StatelessWidget {
           onRefresh: () => serviceProvider.loadServices(),
           child: CustomScrollView(
             slivers: [
-              // Greeting, notifications, favorites and avatar
+              // Header
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
                       horizontal: AppSizes.s20, vertical: AppSizes.s16),
                   child: Row(
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
+                        avatarUrl: userProvider.user.avatarUrl,
+                        name: userProvider.user.name,
                         radius: 22.r,
-                        backgroundColor:
-                            theme.colorScheme.primary.withAlpha(30),
-                        child: Text(
-                          userProvider.user.initials,
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15.sp,
-                          ),
-                        ),
                       ),
                       SizedBox(width: AppSizes.s12),
                       Expanded(
@@ -83,97 +77,121 @@ class HomeScreen extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color:
-                                    theme.colorScheme.onSurface.withAlpha(160),
+                                color: theme.colorScheme.onSurface.withAlpha(160),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: Badge(
-                          isLabelVisible: notificationProvider.unreadCount > 0,
-                          label: Text('${notificationProvider.unreadCount}'),
-                          child: const Icon(Icons.notifications_outlined),
+                      _HeaderCircleButton(
+                        icon: Icons.notifications_outlined,
+                        tooltip: 'Notifications',
+                        badgeCount: notificationProvider.unreadCount,
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationsScreen(),
+                          ),
                         ),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationsScreen(),
-                            ),
-                          );
-                        },
                       ),
-                      IconButton(
-                        icon: Badge(
-                          isLabelVisible: favoritesProvider.hasUnreadFavorites,
-                          label: Text('${favoritesProvider.favorites.length}'),
-                          child: const Icon(Icons.favorite_rounded,
-                              color: Colors.redAccent),
+                      SizedBox(width: 8.w),
+                      _HeaderCircleButton(
+                        icon: Icons.favorite_rounded,
+                        iconColor: Colors.redAccent,
+                        tooltip: 'Favorites',
+                        badgeCount: favoritesProvider.hasUnreadFavorites ? 1 : 0,
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const FavoritesScreen(),
+                          ),
                         ),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const FavoritesScreen(),
-                            ),
-                          );
-                        },
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // Promo banner (hidden while searching / filtering)
+              // Promo banner
               if (!isFiltering)
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: AppSizes.s20, vertical: AppSizes.s4),
-                    child: Container(
-                      padding: EdgeInsets.all(AppSizes.s20),
-                      decoration: BoxDecoration(
+                  child: FadeSlideIn(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: AppSizes.s20, vertical: AppSizes.s4),
+                      child: ClipRRect(
                         borderRadius: BorderRadius.circular(AppSizes.radiusXL),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            theme.colorScheme.primary,
-                            theme.colorScheme.secondary,
-                          ],
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Book trusted pros\nin a few taps',
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 6.h),
-                                Text(
-                                  '${serviceProvider.services.length} services available near you',
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(color: Colors.white70),
-                                ),
+                        child: Container(
+                          padding: EdgeInsets.all(AppSizes.s20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                theme.colorScheme.primary,
+                                theme.colorScheme.secondary,
                               ],
                             ),
                           ),
-                          Icon(Icons.event_available_rounded,
-                              size: 54.sp, color: Colors.white38),
-                        ],
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                right: -30.r,
+                                top: -40.r,
+                                child: _Circle(size: 130.r, alpha: 28),
+                              ),
+                              Positioned(
+                                right: 40.r,
+                                bottom: -50.r,
+                                child: _Circle(size: 100.r, alpha: 20),
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Book trusted pros\nin a few taps',
+                                          style: theme.textTheme.titleLarge
+                                              ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        SizedBox(height: 10.h),
+                                        Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 12.w, vertical: 6.h),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withAlpha(40),
+                                            borderRadius:
+                                            BorderRadius.circular(20.r),
+                                          ),
+                                          child: Text(
+                                            '${serviceProvider.services.length} services available near you',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12.sp,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.event_available_rounded,
+                                      size: 54.sp, color: Colors.white54),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
 
-              // Search bar & sort button
+              // Search + sort
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
@@ -182,31 +200,37 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: TextField(
-                          onChanged: (val) =>
-                              serviceProvider.setSearchQuery(val),
+                          onChanged: (val) => serviceProvider.setSearchQuery(val),
                           decoration: InputDecoration(
                             hintText: 'Search salon, AC, tutor, massage...',
                             prefixIcon: const Icon(Icons.search_rounded),
                             suffixIcon: serviceProvider.searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear_rounded),
-                                    onPressed: () =>
-                                        serviceProvider.setSearchQuery(''),
-                                  )
+                              tooltip: 'Clear search',
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () =>
+                                  serviceProvider.setSearchQuery(''),
+                            )
                                 : null,
                           ),
                         ),
                       ),
                       SizedBox(width: 10.w),
-                      Container(
-                        decoration: BoxDecoration(
+                      Tooltip(
+                        message: 'Sort',
+                        child: Material(
                           color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(AppSizes.radiusM),
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.tune_rounded,
-                              color: Colors.white),
-                          onPressed: () => _showSortBottomSheet(context),
+                          shape: const CircleBorder(),
+                          child: InkResponse(
+                            customBorder: const CircleBorder(),
+                            onTap: () => _showSortBottomSheet(context),
+                            child: SizedBox(
+                              width: 50.r,
+                              height: 50.r,
+                              child: Icon(Icons.tune_rounded,
+                                  color: theme.colorScheme.onPrimary),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -214,7 +238,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              // Category filter chips
+              // Category chips
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.only(top: 6.h, bottom: AppSizes.s8),
@@ -229,8 +253,7 @@ class HomeScreen extends StatelessWidget {
                           return CategoryChip(
                             label: 'All',
                             icon: Icons.grid_view_rounded,
-                            isSelected:
-                                serviceProvider.selectedCategory == null,
+                            isSelected: serviceProvider.selectedCategory == null,
                             onTap: () => serviceProvider.selectCategory(null),
                           );
                         }
@@ -248,7 +271,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              // Content: loading / error / empty / lists
+              // Content
               if (serviceProvider.isLoading && serviceProvider.services.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -283,49 +306,41 @@ class HomeScreen extends StatelessWidget {
                   ),
                 )
               else if (serviceProvider.filteredServices.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyStateView(
-                    icon: Icons.search_off_rounded,
-                    title: 'No Services Found',
-                    message:
-                        'No matches for your current filter or search criteria. Try a different category or search keyword.',
-                    buttonText: 'Clear Filters',
-                    onButtonPressed: () {
-                      serviceProvider.selectCategory(null);
-                      serviceProvider.setSearchQuery('');
-                    },
-                  ),
-                )
-              else if (isFiltering) ...[
-                _sectionTitle(
-                  context,
-                  'Results (${serviceProvider.filteredServices.length})',
-                ),
-                _grid(context, serviceProvider.filteredServices, 'search'),
-                SliverToBoxAdapter(child: SizedBox(height: 32.h)),
-              ] else ...[
-                // Popular
-                if (serviceProvider.popularServices.isNotEmpty) ...[
-                  _sectionTitle(context, 'Popular Services'),
-                  _carousel(context, serviceProvider.popularServices, 'popular'),
-                ],
-
-                // Uploaded by provider accounts
-                if (serviceProvider.providerServices.isNotEmpty) ...[
-                  _sectionTitle(context, 'New from providers',
-                      trailing:
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyStateView(
+                      icon: Icons.search_off_rounded,
+                      title: 'No Services Found',
+                      message:
+                      'No matches for your current filter or search criteria. Try a different category or search keyword.',
+                      buttonText: 'Clear Filters',
+                      onButtonPressed: () {
+                        serviceProvider.selectCategory(null);
+                        serviceProvider.setSearchQuery('');
+                      },
+                    ),
+                  )
+                else if (isFiltering) ...[
+                    _sectionTitle(context, 'Results',
+                        trailing: '${serviceProvider.filteredServices.length} found'),
+                    _grid(context, serviceProvider.filteredServices, 'search'),
+                    SliverToBoxAdapter(child: SizedBox(height: 32.h)),
+                  ] else ...[
+                    if (serviceProvider.popularServices.isNotEmpty) ...[
+                      _sectionTitle(context, 'Popular Services'),
+                      _carousel(context, serviceProvider.popularServices, 'popular'),
+                    ],
+                    if (serviceProvider.providerServices.isNotEmpty) ...[
+                      _sectionTitle(context, 'New from providers',
+                          trailing:
                           '${serviceProvider.providerServices.length} listings'),
-                  _carousel(
-                      context, serviceProvider.providerServices, 'provider'),
-                ],
-
-                // All Services Grid
-                _sectionTitle(context, 'All Services',
-                    trailing: '${serviceProvider.services.length} total'),
-                _grid(context, serviceProvider.services, 'all'),
-                SliverToBoxAdapter(child: SizedBox(height: 32.h)),
-              ],
+                      _carousel(context, serviceProvider.providerServices, 'provider'),
+                    ],
+                    _sectionTitle(context, 'All Services',
+                        trailing: '${serviceProvider.services.length} total'),
+                    _grid(context, serviceProvider.services, 'all'),
+                    SliverToBoxAdapter(child: SizedBox(height: 32.h)),
+                  ],
             ],
           ),
         ),
@@ -340,22 +355,28 @@ class HomeScreen extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(
             AppSizes.s20, AppSizes.s24, AppSizes.s20, AppSizes.s12),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Container(
+              width: 4.w,
+              height: 20.h,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(4.r),
+              ),
+            ),
+            SizedBox(width: 10.w),
             Expanded(
               child: Text(
                 title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             if (trailing != null)
-              Text(
-                trailing,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withAlpha(140),
-                ),
+              StatusPill(
+                label: trailing,
+                color: theme.colorScheme.primary,
+                showDot: false,
               ),
           ],
         ),
@@ -394,7 +415,7 @@ class HomeScreen extends StatelessWidget {
       sliver: SliverGrid(
         gridDelegate: _gridDelegate,
         delegate: SliverChildBuilderDelegate(
-          (context, index) {
+              (context, index) {
             final service = services[index];
             final tag = '${tagPrefix}_${service.id}';
             return ServiceCard(
@@ -423,7 +444,7 @@ class HomeScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28.r)),
       ),
       builder: (ctx) {
         Widget tile(String title, IconData icon, ServiceSort sort) {
@@ -442,18 +463,30 @@ class HomeScreen extends StatelessWidget {
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(
-                horizontal: AppSizes.s20, vertical: AppSizes.s16),
+                horizontal: AppSizes.s20, vertical: AppSizes.s12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Sort Services By',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Center(
+                  child: Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.onSurface.withAlpha(50),
+                      borderRadius: BorderRadius.circular(4.r),
+                    ),
+                  ),
                 ),
                 SizedBox(height: AppSizes.s16),
+                Text(
+                  'Sort Services By',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: AppSizes.s12),
                 tile('Price: Low to High', Icons.arrow_upward_rounded,
                     ServiceSort.priceAsc),
                 tile('Price: High to Low', Icons.arrow_downward_rounded,
@@ -469,24 +502,28 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildSortTile(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
+      BuildContext context, {
+        required String title,
+        required IconData icon,
+        required bool selected,
+        required VoidCallback onTap,
+      }) {
     final theme = Theme.of(context);
+    final c = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface.withAlpha(160);
     return ListTile(
-      leading: Icon(icon,
-          color: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.onSurface.withAlpha(160)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      leading: CircleAvatar(
+        radius: 18.r,
+        backgroundColor: c.withAlpha(28),
+        child: Icon(icon, color: c, size: 18.sp),
+      ),
       title: Text(
         title,
         style: TextStyle(
           fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-          color:
-              selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
         ),
       ),
       trailing: selected
@@ -495,4 +532,65 @@ class HomeScreen extends StatelessWidget {
       onTap: onTap,
     );
   }
+}
+
+class _HeaderCircleButton extends StatelessWidget {
+  final IconData icon;
+  final Color? iconColor;
+  final String tooltip;
+  final int badgeCount;
+  final VoidCallback onPressed;
+
+  const _HeaderCircleButton({
+    required this.icon,
+    required this.tooltip,
+    required this.badgeCount,
+    required this.onPressed,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: theme.colorScheme.onSurface.withAlpha(14),
+        shape: const CircleBorder(),
+        child: InkResponse(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 44.r,
+            height: 44.r,
+            child: Center(
+              child: Badge(
+                isLabelVisible: badgeCount > 0,
+                label: Text('$badgeCount'),
+                child: Icon(icon,
+                    size: 22.sp,
+                    color: iconColor ?? theme.colorScheme.onSurface),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Circle extends StatelessWidget {
+  final double size;
+  final int alpha;
+  const _Circle({required this.size, required this.alpha});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.white.withAlpha(alpha),
+    ),
+  );
 }

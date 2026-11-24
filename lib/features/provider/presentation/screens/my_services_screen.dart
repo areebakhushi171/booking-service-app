@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:bookease/core/constants/app_colors.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
 import 'package:bookease/core/widgets/empty_state_view.dart';
+import 'package:bookease/core/widgets/shimmer_loading.dart';
+import 'package:bookease/core/widgets/ui_kit.dart';
 import 'package:bookease/features/customer/services/data/models/service_model.dart';
 import 'package:bookease/features/customer/services/providers/service_provider.dart';
 import 'package:bookease/features/provider/presentation/screens/service_form_screen.dart';
@@ -20,7 +22,6 @@ class MyServicesScreen extends StatelessWidget {
       MaterialPageRoute(builder: (_) => ServiceFormScreen(existing: existing)),
     );
     if (saved == true && context.mounted) {
-      // Customers must see the change right away.
       context.read<ServiceProvider>().loadServices();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -36,16 +37,29 @@ class MyServicesScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete service?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        icon: CircleAvatar(
+          radius: 28.r,
+          backgroundColor: AppColors.error.withAlpha(30),
+          child: Icon(Icons.delete_outline_rounded,
+              color: AppColors.error, size: 28.sp),
+        ),
+        title: const Text('Delete service?', textAlign: TextAlign.center),
         content: Text(
-            '"${s.name}" will be removed for customers. Existing bookings are kept.'),
+          '"${s.name}" will be removed for customers. Existing bookings are kept.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -59,6 +73,7 @@ class MyServicesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final state = context.watch<ProviderServicesProvider>();
 
     return Scaffold(
@@ -71,20 +86,27 @@ class MyServicesScreen extends StatelessWidget {
       floatingActionButton: state.services.isEmpty
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => _openForm(context),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add service'),
-            ),
+        onPressed: () => _openForm(context),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add service'),
+      ),
       body: Builder(builder: (context) {
         if (state.isLoading && state.services.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+          return ListView.builder(
+            padding: EdgeInsets.all(AppSizes.s20),
+            itemCount: 4,
+            itemBuilder: (_, __) => Padding(
+              padding: EdgeInsets.only(bottom: 12.h),
+              child: ShimmerPlaceholder(width: double.infinity, height: 150.h),
+            ),
+          );
         }
         if (state.services.isEmpty) {
           return EmptyStateView(
             icon: Icons.add_business_rounded,
             title: 'No services yet',
             message:
-                'Upload your first service with a price, duration and photo. Customers will be able to book it instantly.',
+            'Upload your first service with a price, duration and photo. Customers will be able to book it instantly.',
             buttonText: 'Add your first service',
             onButtonPressed: () => _openForm(context),
           );
@@ -95,21 +117,43 @@ class MyServicesScreen extends StatelessWidget {
             child: ListView.builder(
               padding: EdgeInsets.fromLTRB(
                   AppSizes.s20, AppSizes.s8, AppSizes.s20, 96.h),
-              itemCount: state.services.length,
+              itemCount: state.services.length + 1,
               itemBuilder: (context, i) {
-                final s = state.services[i];
-                return ProviderServiceTile(
-                  service: s,
-                  onEdit: () => _openForm(context, s),
-                  onDelete: () => _confirmDelete(context, s),
-                  onActiveChanged: (v) async {
-                    await context
-                        .read<ProviderServicesProvider>()
-                        .setActive(s, v);
-                    if (context.mounted) {
-                      context.read<ServiceProvider>().loadServices();
-                    }
-                  },
+                if (i == 0) {
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: AppSizes.s12),
+                    child: Wrap(
+                      spacing: 8.w,
+                      children: [
+                        StatusPill(
+                          label: '${state.services.length} services',
+                          color: theme.colorScheme.primary,
+                          showDot: false,
+                        ),
+                        StatusPill(
+                          label: '${state.activeCount} live',
+                          color: AppColors.success,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                final s = state.services[i - 1];
+                return FadeSlideIn(
+                  index: i,
+                  child: ProviderServiceTile(
+                    service: s,
+                    onEdit: () => _openForm(context, s),
+                    onDelete: () => _confirmDelete(context, s),
+                    onActiveChanged: (v) async {
+                      await context
+                          .read<ProviderServicesProvider>()
+                          .setActive(s, v);
+                      if (context.mounted) {
+                        context.read<ServiceProvider>().loadServices();
+                      }
+                    },
+                  ),
                 );
               },
             ),

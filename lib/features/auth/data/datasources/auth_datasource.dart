@@ -43,5 +43,7 @@ abstract class AuthDataSource {
   Future<AuthResult> login(String email, String password);
   Future<UserModel> getCurrentUser(String token);
   Future<UserModel> updateProfile(UserModel user, String token);
+  Future<UserModel> uploadAvatar(String filePath, String token, {UserModel? currentUser});
+  Future<UserModel> removeAvatar(String token, UserModel currentUser);
   Future<void> changePassword(String currentPassword, String newPassword, String token);
 }

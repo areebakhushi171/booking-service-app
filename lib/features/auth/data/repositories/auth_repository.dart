@@ -7,6 +7,8 @@ abstract class AuthRepository {
   Future<UserModel> login(String email, String password);
   Future<UserModel?> restoreSession();
   Future<UserModel> updateProfile(UserModel user);
+  Future<UserModel> uploadAvatar(String filePath, UserModel currentUser);
+  Future<UserModel> removeAvatar(UserModel currentUser);
   Future<void> changePassword(String currentPassword, String newPassword);
   Future<void> cacheUser(UserModel user);
   Future<void> logout();

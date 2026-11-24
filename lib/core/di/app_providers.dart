@@ -56,7 +56,14 @@ Future<List<SingleChildWidget>> buildAppProviders() async {
     ChangeNotifierProvider(create: (_) => ThemeProvider(settingsRepository)),
     ChangeNotifierProvider(create: (_) => AuthProvider(authRepository)),
     ChangeNotifierProvider(create: (_) => ServiceProvider(serviceRepository)),
-    ChangeNotifierProvider(create: (_) => FavoritesProvider(favoritesRepository)),
+    ChangeNotifierProxyProvider<AuthProvider, FavoritesProvider>(
+      create: (_) => FavoritesProvider(favoritesRepository),
+      update: (_, auth, favorites) => favorites!
+        ..attachUser(
+          userId: auth.currentUser?.id,
+          isAuthenticated: auth.isAuthenticated,
+        ),
+    ),
     ChangeNotifierProvider(create: (_) => NotificationProvider(notificationRepository)),
     ChangeNotifierProvider(create: (_) => ChatProvider(chatRepository)),
     ChangeNotifierProvider(create: (_) => ProviderServicesProvider(serviceRepository)),

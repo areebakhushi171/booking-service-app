@@ -6,6 +6,9 @@ import 'package:bookease/core/constants/app_categories.dart';
 import 'package:bookease/core/constants/app_colors.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
 import 'package:bookease/core/widgets/custom_button.dart';
+import 'package:bookease/core/widgets/header_circle_button.dart';
+import 'package:bookease/core/widgets/ui_kit.dart';
+import 'package:bookease/core/widgets/user_avatar.dart';
 import 'package:bookease/features/auth/providers/auth_provider.dart';
 import 'package:bookease/features/customer/bookings/providers/booking_provider.dart';
 import 'package:bookease/features/notifications/presentation/screens/notifications_screen.dart';
@@ -51,20 +54,13 @@ class ProviderDashboardScreen extends StatelessWidget {
           child: ListView(
             padding: AppSizes.screenPadding,
             children: [
-              // Top Greeting Row with Notifications
+              // Header
               Row(
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
+                    avatarUrl: user.avatarUrl,
+                    name: user.name,
                     radius: 22.r,
-                    backgroundColor: theme.colorScheme.primary.withAlpha(30),
-                    child: Text(
-                      user.initials,
-                      style: TextStyle(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15.sp,
-                      ),
-                    ),
                   ),
                   SizedBox(width: AppSizes.s12),
                   Expanded(
@@ -75,9 +71,8 @@ class ProviderDashboardScreen extends StatelessWidget {
                           '${_getGreeting()}, ${user.name.split(' ').first}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
                           user.businessName ?? category ?? 'Service Provider',
@@ -90,100 +85,134 @@ class ProviderDashboardScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Badge(
-                      isLabelVisible: notificationProvider.unreadCount > 0,
-                      label: Text('${notificationProvider.unreadCount}'),
-                      child: const Icon(Icons.notifications_outlined),
+                  HeaderCircleButton(
+                    icon: Icons.notifications_outlined,
+                    tooltip: 'Notifications',
+                    badgeCount: notificationProvider.unreadCount,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
                     ),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const NotificationsScreen(),
-                        ),
-                      );
-                    },
                   ),
                 ],
               ),
               SizedBox(height: AppSizes.s16),
 
-              // Earnings Banner Header card
-              Container(
-                padding: EdgeInsets.all(AppSizes.s20),
-                decoration: BoxDecoration(
+              // Earnings banner
+              FadeSlideIn(
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppSizes.radiusXL),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.secondary,
-                    ],
+                  child: Container(
+                    padding: EdgeInsets.all(AppSizes.s20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          theme.colorScheme.primary,
+                          theme.colorScheme.secondary,
+                        ],
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -36.r,
+                          top: -46.r,
+                          child: _Circle(size: 140.r, alpha: 26),
+                        ),
+                        Positioned(
+                          right: 50.r,
+                          bottom: -56.r,
+                          child: _Circle(size: 110.r, alpha: 18),
+                        ),
+                        SizedBox(
+                          width: double.infinity,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Business Performance',
+                                style: theme.textTheme.bodyMedium
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                              SizedBox(height: 2.h),
+                              Text(
+                                user.businessName ?? user.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (category != null) ...[
+                                SizedBox(height: 6.h),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 10.w, vertical: 4.h),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withAlpha(40),
+                                    borderRadius: BorderRadius.circular(20.r),
+                                  ),
+                                  child: Text(
+                                    category,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              SizedBox(height: AppSizes.s16),
+                              Text(
+                                'Total earnings',
+                                style: theme.textTheme.bodySmall
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                              Text(
+                                'Rs ${bookings.providerEarnings.toStringAsFixed(0)}',
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Business Performance',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: Colors.white70),
-                    ),
-                    SizedBox(height: 2.h),
-                    Text(
-                      user.businessName ?? user.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (category != null) ...[
-                      SizedBox(height: 4.h),
-                      Text(
-                        category,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    ],
-                    SizedBox(height: AppSizes.s16),
-                    Text(
-                      'Total earnings',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.white70),
-                    ),
-                    Text(
-                      'Rs ${bookings.providerEarnings.toStringAsFixed(0)}',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
                 ),
               ),
               SizedBox(height: AppSizes.s16),
 
-              // Stats
+              // Stats 2x2
               Row(
                 children: [
                   Expanded(
-                    child: StatCard(
-                      icon: Icons.design_services_rounded,
-                      value: '${services.services.length}',
-                      label: 'My services',
-                      color: AppColors.primary,
+                    child: FadeSlideIn(
+                      index: 1,
+                      child: StatCard(
+                        icon: Icons.design_services_rounded,
+                        value: '${services.services.length}',
+                        label: 'My services',
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                   SizedBox(width: AppSizes.s12),
                   Expanded(
-                    child: StatCard(
-                      icon: Icons.pending_actions_rounded,
-                      value: '${upcoming.length}',
-                      label: 'Upcoming',
-                      color: AppColors.warning,
+                    child: FadeSlideIn(
+                      index: 2,
+                      child: StatCard(
+                        icon: Icons.pending_actions_rounded,
+                        value: '${upcoming.length}',
+                        label: 'Upcoming',
+                        color: AppColors.warning,
+                      ),
                     ),
                   ),
                 ],
@@ -192,20 +221,26 @@ class ProviderDashboardScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: StatCard(
-                      icon: Icons.check_circle_rounded,
-                      value: '${completed.length}',
-                      label: 'Completed',
-                      color: AppColors.success,
+                    child: FadeSlideIn(
+                      index: 3,
+                      child: StatCard(
+                        icon: Icons.check_circle_rounded,
+                        value: '${completed.length}',
+                        label: 'Completed',
+                        color: AppColors.success,
+                      ),
                     ),
                   ),
                   SizedBox(width: AppSizes.s12),
                   Expanded(
-                    child: StatCard(
-                      icon: Icons.visibility_rounded,
-                      value: '${services.activeCount}',
-                      label: 'Live listings',
-                      color: AppColors.accentTeal,
+                    child: FadeSlideIn(
+                      index: 4,
+                      child: StatCard(
+                        icon: Icons.visibility_rounded,
+                        value: '${services.activeCount}',
+                        label: 'Live listings',
+                        color: AppColors.accentTeal,
+                      ),
                     ),
                   ),
                 ],
@@ -235,14 +270,23 @@ class ProviderDashboardScreen extends StatelessWidget {
               ),
               SizedBox(height: AppSizes.s24),
 
-              // Next requests
+              // Upcoming
               Row(
                 children: [
+                  Container(
+                    width: 4.w,
+                    height: 20.h,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(4.r),
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
                   Expanded(
                     child: Text(
                       'Upcoming bookings',
                       style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   if (upcoming.length > 3)
@@ -252,31 +296,63 @@ class ProviderDashboardScreen extends StatelessWidget {
                     ),
                 ],
               ),
-              SizedBox(height: AppSizes.s8),
+              SizedBox(height: AppSizes.s12),
               if (upcoming.isEmpty)
                 Container(
                   padding: EdgeInsets.all(AppSizes.s20),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(AppSizes.radiusL),
+                    borderRadius: BorderRadius.circular(22.r),
                     border: Border.all(
                         color: theme.colorScheme.onSurface.withAlpha(20)),
                   ),
-                  child: Text(
-                    services.services.isEmpty
-                        ? 'Add your first service so customers can start booking you.'
-                        : 'No upcoming bookings yet. They will appear here as soon as a customer books one of your services.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46.r,
+                        height: 46.r,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withAlpha(25),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.event_available_rounded,
+                            color: theme.colorScheme.primary),
+                      ),
+                      SizedBox(width: 14.w),
+                      Expanded(
+                        child: Text(
+                          services.services.isEmpty
+                              ? 'Add your first service so customers can start booking you.'
+                              : 'No upcoming bookings yet. They will appear here as soon as a customer books one of your services.',
+                          style:
+                          theme.textTheme.bodyMedium?.copyWith(color: muted),
+                        ),
+                      ),
+                    ],
                   ),
                 )
               else
-                ...upcoming
-                    .take(3)
-                    .map((b) => BookingRequestCard(booking: b)),
+                ...upcoming.take(3).map((b) => BookingRequestCard(booking: b)),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _Circle extends StatelessWidget {
+  final double size;
+  final int alpha;
+  const _Circle({required this.size, required this.alpha});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.white.withAlpha(alpha),
+    ),
+  );
 }

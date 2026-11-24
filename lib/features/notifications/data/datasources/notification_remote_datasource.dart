@@ -29,4 +29,10 @@ class NotificationRemoteDataSource {
   Future<void> deleteNotification(String id) async {
     await _client.delete(ApiEndpoints.notificationById(id));
   }
+
+  Future<void> deleteAllNotifications() async {
+    try {
+      await _client.delete(ApiEndpoints.notifications);
+    } catch (_) {}
+  }
 }

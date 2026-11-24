@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'package:bookease/core/constants/app_categories.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
+import 'package:bookease/core/utils/image_picker_helper.dart';
 import 'package:bookease/core/utils/validators.dart';
 import 'package:bookease/core/widgets/app_text_field.dart';
 import 'package:bookease/core/widgets/custom_button.dart';
@@ -41,6 +44,10 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
   late bool _isActive;
   bool _saving = false;
 
+  File? _pickedCoverFile;
+  List<String> _existingGalleryUrls = [];
+  final List<File> _pickedGalleryFiles = [];
+
   bool get _isEdit => widget.existing != null;
 
   @override
@@ -68,6 +75,11 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
             : knownIds.first);
     _duration = s?.durationMinutes ?? 60;
     _isActive = s?.isActive ?? true;
+
+    if (s != null) {
+      _existingGalleryUrls = List.from(s.galleryImages);
+    }
+
     _imageUrl.addListener(() => setState(() {}));
   }
 
@@ -88,14 +100,41 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
     return custom.isEmpty ? ServiceImagePresets.forCategory(_category) : custom;
   }
 
-  String? _validateImage(String? v) {
-    final value = (v ?? '').trim();
-    if (value.isEmpty) return null;
-    final uri = Uri.tryParse(value);
-    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
-      return 'Enter a valid http(s) image link or leave empty';
+  Future<void> _selectCoverImage() async {
+    await ImagePickerHelper.showImageSourcePicker(
+      context: context,
+      title: 'Main Service Photo',
+      onImageSelected: (File file) {
+        setState(() {
+          _pickedCoverFile = file;
+        });
+      },
+    );
+  }
+
+  Future<void> _addGalleryImages() async {
+    final currentCount = _existingGalleryUrls.length + _pickedGalleryFiles.length;
+    if (currentCount >= ImagePickerHelper.maxGalleryImages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You can add a maximum of 5 gallery images.')),
+      );
+      return;
     }
-    return null;
+
+    try {
+      final files = await ImagePickerHelper.pickMultiImage(currentCount: currentCount);
+      if (files.isNotEmpty) {
+        setState(() {
+          _pickedGalleryFiles.addAll(files);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -112,45 +151,49 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
         .where((e) => e.isNotEmpty)
         .toList();
 
-    final existing = widget.existing;
-    final service = existing == null
-        ? ServiceModel(
-            id: '',
-            name: _name.text.trim(),
-            category: _category,
-            description: _description.text.trim(),
-            price: double.parse(_price.text.trim()),
-            durationMinutes: _duration,
-            city: _city.text.trim().isNotEmpty ? _city.text.trim() : 'Karachi',
-            country: _country.text.trim().isNotEmpty ? _country.text.trim() : 'Pakistan',
-            imageUrl: _previewUrl,
-            galleryImages: [_previewUrl],
-            features: features,
-            providerId: user.id,
-            providerName: user.businessName ?? user.name,
-            isActive: _isActive,
-          )
-        : existing.copyWith(
-            name: _name.text.trim(),
-            category: _category,
-            description: _description.text.trim(),
-            price: double.parse(_price.text.trim()),
-            durationMinutes: _duration,
-            city: _city.text.trim().isNotEmpty ? _city.text.trim() : 'Karachi',
-            country: _country.text.trim().isNotEmpty ? _country.text.trim() : 'Pakistan',
-            imageUrl: _previewUrl,
-            features: features,
-            isActive: _isActive,
-          );
-
     try {
-      await provider.save(service);
+      final existing = widget.existing;
+      final service = existing == null
+          ? ServiceModel(
+              id: '',
+              name: _name.text.trim(),
+              category: _category,
+              description: _description.text.trim(),
+              price: double.parse(_price.text.trim()),
+              durationMinutes: _duration,
+              city: _city.text.trim().isNotEmpty ? _city.text.trim() : 'Karachi',
+              country: _country.text.trim().isNotEmpty ? _country.text.trim() : 'Pakistan',
+              imageUrl: '',
+              galleryImages: const [],
+              features: features,
+              providerId: user.id,
+              providerName: user.businessName ?? user.name,
+              isActive: _isActive,
+            )
+          : existing.copyWith(
+              name: _name.text.trim(),
+              category: _category,
+              description: _description.text.trim(),
+              price: double.parse(_price.text.trim()),
+              durationMinutes: _duration,
+              city: _city.text.trim().isNotEmpty ? _city.text.trim() : 'Karachi',
+              country: _country.text.trim().isNotEmpty ? _country.text.trim() : 'Pakistan',
+              features: features,
+              isActive: _isActive,
+            );
+
+      await provider.save(
+        service,
+        mainImageFile: _pickedCoverFile,
+        galleryFiles: _pickedGalleryFiles,
+        existingGalleryUrls: _existingGalleryUrls,
+      );
       if (mounted) Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save the service. Try again.')),
+        SnackBar(content: Text('Could not save service: ${e.toString().replaceAll('Exception: ', '')}')),
       );
     }
   }
@@ -174,30 +217,196 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
               child: ListView(
                 padding: AppSizes.screenPadding,
                 children: [
-                  // Cover preview
-                  ClipRRect(
+                  // Main Cover Header with Camera Icon
+                  Text('Main Cover Photo',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  SizedBox(height: AppSizes.s8),
+                  InkWell(
+                    onTap: _saving ? null : _selectCoverImage,
                     borderRadius: BorderRadius.circular(AppSizes.radiusL),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: _previewUrl.isEmpty
-                          ? Container(
-                              color: theme.colorScheme.onSurface.withAlpha(15),
-                              child: Icon(Icons.broken_image_outlined,
-                                  color: muted, size: 36.sp),
-                            )
-                          : CachedNetworkImage(
-                              imageUrl: _previewUrl,
-                              fit: BoxFit.cover,
-                              placeholder: (_, __) => Container(
-                                  color: theme.colorScheme.onSurface.withAlpha(15)),
-                              errorWidget: (_, __, ___) => Container(
-                                color: theme.colorScheme.onSurface.withAlpha(15),
-                                child: Icon(Icons.broken_image_outlined,
-                                    color: muted, size: 36.sp),
-                              ),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppSizes.radiusL),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: _pickedCoverFile != null
+                                ? Image.file(
+                                    _pickedCoverFile!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : (_previewUrl.isEmpty
+                                    ? Container(
+                                        color: theme.colorScheme.onSurface.withAlpha(15),
+                                        child: Icon(Icons.broken_image_outlined,
+                                            color: muted, size: 36.sp),
+                                      )
+                                    : CachedNetworkImage(
+                                        imageUrl: _previewUrl,
+                                        fit: BoxFit.cover,
+                                        placeholder: (_, __) => Container(
+                                            color: theme.colorScheme.onSurface.withAlpha(15)),
+                                        errorWidget: (_, __, ___) => Container(
+                                          color: theme.colorScheme.onSurface.withAlpha(15),
+                                          child: Icon(Icons.broken_image_outlined,
+                                              color: muted, size: 36.sp),
+                                        ),
+                                      )),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 12.r,
+                          right: 12.r,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12.w, vertical: 8.h),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(20.r),
                             ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.camera_alt_rounded,
+                                    color: Colors.white, size: 16.sp),
+                                SizedBox(width: 6.w),
+                                Text(
+                                  'Change Photo',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  SizedBox(height: AppSizes.s20),
+
+                  // Gallery Photos Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Gallery Photos (Max 5)',
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      TextButton.icon(
+                        onPressed: _saving ? null : _addGalleryImages,
+                        icon: const Icon(Icons.add_photo_alternate_rounded),
+                        label: const Text('Add Photos'),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: AppSizes.s8),
+
+                  if (_existingGalleryUrls.isEmpty && _pickedGalleryFiles.isEmpty)
+                    Container(
+                      padding: EdgeInsets.all(16.r),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurface.withAlpha(10),
+                        borderRadius: BorderRadius.circular(AppSizes.radiusM),
+                        border: Border.all(
+                            color: theme.colorScheme.onSurface.withAlpha(20)),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'No additional gallery photos added yet.',
+                          style: TextStyle(color: muted, fontSize: 12.sp),
+                        ),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 90.h,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          // Existing URLs
+                          ..._existingGalleryUrls.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final url = entry.value;
+                            return Padding(
+                              padding: EdgeInsets.only(right: 10.w),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(AppSizes.radiusM),
+                                    child: CachedNetworkImage(
+                                      imageUrl: url,
+                                      width: 90.w,
+                                      height: 90.h,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 4.r,
+                                    right: 4.r,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _existingGalleryUrls.removeAt(idx);
+                                        });
+                                      },
+                                      child: CircleAvatar(
+                                        radius: 12.r,
+                                        backgroundColor: Colors.black87,
+                                        child: Icon(Icons.close_rounded,
+                                            size: 14.sp, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          // Newly picked local files
+                          ..._pickedGalleryFiles.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final file = entry.value;
+                            return Padding(
+                              padding: EdgeInsets.only(right: 10.w),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(AppSizes.radiusM),
+                                    child: Image.file(
+                                      file,
+                                      width: 90.w,
+                                      height: 90.h,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 4.r,
+                                    right: 4.r,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _pickedGalleryFiles.removeAt(idx);
+                                        });
+                                      },
+                                      child: CircleAvatar(
+                                        radius: 12.r,
+                                        backgroundColor: Colors.black87,
+                                        child: Icon(Icons.close_rounded,
+                                            size: 14.sp, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
                   SizedBox(height: AppSizes.s20),
 
                   AppTextField(
@@ -276,7 +485,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                           ?.copyWith(fontWeight: FontWeight.w600)),
                   SizedBox(height: AppSizes.s8),
                   DropdownButtonFormField<int>(
-                    value: _durations.contains(_duration) ? _duration : 60,
+                    initialValue: _durations.contains(_duration) ? _duration : 60,
                     decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.timer_outlined)),
                     items: _durations
@@ -310,16 +519,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                     keyboardType: TextInputType.multiline,
                   ),
                   SizedBox(height: AppSizes.s16),
-
-                  AppTextField(
-                    label: 'Photo link (optional)',
-                    hint: 'https://... leave empty to use a category photo',
-                    icon: Icons.image_outlined,
-                    controller: _imageUrl,
-                    keyboardType: TextInputType.url,
-                    validator: _validateImage,
-                  ),
-                  SizedBox(height: AppSizes.s8),
 
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,

@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:bookease/core/constants/app_routes.dart';
+import 'package:bookease/core/widgets/user_avatar.dart';
 import 'package:bookease/features/auth/providers/auth_provider.dart';
 import 'package:bookease/features/chat/presentation/screens/conversations_screen.dart';
 import 'package:bookease/features/chat/providers/chat_provider.dart';
@@ -95,17 +96,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: EdgeInsets.all(20.r),
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    UserAvatar(
+                      avatarUrl: user.avatarUrl,
+                      name: user.name,
                       radius: 36.r,
-                      backgroundColor: theme.colorScheme.primary,
-                      child: Text(
-                        user.initials,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24.sp,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     ),
                     SizedBox(width: 16.w),
                     Expanded(

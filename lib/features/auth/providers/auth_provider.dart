@@ -142,6 +142,51 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> uploadAvatar(dynamic imageFile) async {
+    final current = _user;
+    if (current == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final path = imageFile is String ? imageFile : imageFile.path;
+      final updated = await _repository.uploadAvatar(path, current);
+      _user = updated;
+      return true;
+    } on AppException catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } catch (e) {
+      _errorMessage = 'Failed to upload profile picture. Please try again.';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> removeAvatar() async {
+    final current = _user;
+    if (current == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final updated = await _repository.removeAvatar(current);
+      _user = updated;
+      return true;
+    } on AppException catch (e) {
+      _errorMessage = e.message;
+      return false;
+    } catch (_) {
+      _errorMessage = 'Failed to remove profile picture.';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> setNotificationsEnabled(bool enabled) async {
     final current = _user;
     if (current == null) return;

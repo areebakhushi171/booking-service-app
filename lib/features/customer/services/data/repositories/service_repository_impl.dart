@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:bookease/features/customer/services/data/datasources/service_remote_datasource.dart';
 import 'package:bookease/features/customer/services/data/models/service_model.dart';
 import 'package:bookease/features/customer/services/data/repositories/service_repository.dart';
@@ -23,16 +25,35 @@ class ServiceRepositoryImpl implements ServiceRepository {
   }
 
   @override
-  Future<void> saveProviderService(ServiceModel service) async {
+  Future<void> saveProviderService(
+    ServiceModel service, {
+    File? mainImageFile,
+    List<File>? galleryFiles,
+    List<String>? existingGalleryUrls,
+  }) async {
     if (service.id.isEmpty || service.id.startsWith('SRV-')) {
-      await _remoteSource.createService(service);
+      await _remoteSource.createServiceMultipart(
+        service,
+        mainImageFile,
+        galleryFiles ?? [],
+      );
     } else {
-      await _remoteSource.updateService(service);
+      await _remoteSource.updateServiceMultipart(
+        service,
+        mainImageFile,
+        galleryFiles ?? [],
+        existingGalleryUrls ?? service.galleryImages,
+      );
     }
   }
 
   @override
   Future<void> deleteProviderService(String serviceId) async {
     await _remoteSource.deleteService(serviceId);
+  }
+
+  @override
+  Future<void> deleteServiceImages(String propertyId, List<String> imageUrls) async {
+    await _remoteSource.deleteServiceImages(propertyId, imageUrls);
   }
 }

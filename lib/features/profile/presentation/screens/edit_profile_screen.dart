@@ -1,12 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:bookease/core/constants/app_categories.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
+import 'package:bookease/core/utils/image_picker_helper.dart';
 import 'package:bookease/core/utils/validators.dart';
 import 'package:bookease/core/widgets/app_text_field.dart';
 import 'package:bookease/core/widgets/custom_button.dart';
+import 'package:bookease/core/widgets/user_avatar.dart';
 import 'package:bookease/features/auth/providers/auth_provider.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -26,6 +30,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   late String? _businessCategory;
   bool _saving = false;
+  bool _uploadingImage = false;
 
   @override
   void initState() {
@@ -45,6 +50,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final authProvider = context.read<AuthProvider>();
+
+    await ImagePickerHelper.showImageSourcePicker(
+      context: context,
+      title: 'Profile Picture',
+      onImageSelected: (File file) async {
+        setState(() => _uploadingImage = true);
+        final success = await authProvider.uploadAvatar(file);
+        if (mounted) {
+          setState(() => _uploadingImage = false);
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Profile picture updated successfully!')),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(authProvider.errorMessage ?? 'Failed to upload image.'),
+              ),
+            );
+          }
+        }
+      },
+    );
   }
 
   Future<void> _save() async {
@@ -98,32 +130,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 // Avatar Header
                 Center(
                   child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
+                        avatarUrl: user.avatarUrl,
+                        name: user.name,
                         radius: 50.r,
-                        backgroundColor: theme.colorScheme.primary,
-                        child: Text(
-                          user.initials,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 32.sp,
-                            fontWeight: FontWeight.bold,
+                        showEditBadge: !_uploadingImage,
+                        onTap: _uploadingImage ? null : _pickAndUploadImage,
+                      ),
+                      if (_uploadingImage)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black38,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(color: Colors.white),
+                            ),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: CircleAvatar(
-                          radius: 16.r,
-                          backgroundColor: theme.colorScheme.secondary,
-                          child: Icon(
-                            Icons.camera_alt_rounded,
-                            size: 16.sp,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),

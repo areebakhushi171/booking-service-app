@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:bookease/features/auth/providers/auth_provider.dart';
 import 'package:bookease/features/chat/data/models/chat_model.dart';
@@ -23,6 +24,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _msgController.addListener(() => setState(() {}));
     _loadMessages();
   }
 
@@ -35,7 +37,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Future<void> _loadMessages() async {
     try {
-      final messages = await context.read<ChatProvider>().fetchMessages(widget.conversation.id);
+      final messages =
+      await context.read<ChatProvider>().fetchMessages(widget.conversation.id);
       messages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       if (mounted) {
         setState(() {
@@ -71,7 +74,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _msgController.clear();
 
     try {
-      final realMsg = await context.read<ChatProvider>().sendMessage(widget.conversation.id, text);
+      final realMsg =
+      await context.read<ChatProvider>().sendMessage(widget.conversation.id, text);
       if (mounted) {
         setState(() {
           final idx = _messages.indexWhere((m) => m.id == tempMsg.id);
@@ -96,26 +100,47 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  String _dateLabel(DateTime d) {
+    final now = DateTime.now();
+    if (_sameDay(d, now)) return 'Today';
+    if (_sameDay(d, now.subtract(const Duration(days: 1)))) return 'Yesterday';
+    return DateFormat('EEE, MMM d').format(d);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final muted = theme.colorScheme.onSurface.withAlpha(150);
     final currentUserId = context.read<AuthProvider>().user.id;
+    final canSend = _msgController.text.trim().isNotEmpty && !_sending;
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18.r,
-              backgroundColor: theme.colorScheme.primary.withAlpha(30),
-              child: Text(
-                widget.conversation.participantName.isNotEmpty
-                    ? widget.conversation.participantName[0].toUpperCase()
-                    : 'U',
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14.sp,
+            Container(
+              padding: EdgeInsets.all(2.r),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: primary.withAlpha(120), width: 1.5),
+              ),
+              child: CircleAvatar(
+                radius: 17.r,
+                backgroundColor: primary.withAlpha(30),
+                child: Text(
+                  widget.conversation.propertyName.isNotEmpty
+                      ? widget.conversation.propertyName[0].toUpperCase()
+                      : 'S',
+                  style: TextStyle(
+                    color: primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.sp,
+                  ),
                 ),
               ),
             ),
@@ -125,12 +150,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.conversation.participantName,
-                    style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+                    widget.conversation.propertyName,
+                    style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    widget.conversation.propertyName,
-                    style: TextStyle(fontSize: 11.sp, color: theme.colorScheme.onSurface.withAlpha(160)),
+                    'Chat with ${widget.conversation.participantName}',
+                    style: TextStyle(fontSize: 11.sp, color: muted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -144,151 +173,232 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _messages.isEmpty
-                    ? Center(
+                ? Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32.w),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 84.r,
+                      height: 84.r,
+                      decoration: BoxDecoration(
+                        color: primary.withAlpha(25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.chat_bubble_outline_rounded,
+                          size: 38.sp, color: primary),
+                    ),
+                    SizedBox(height: 16.h),
+                    Text('Say hello 👋',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    SizedBox(height: 6.h),
+                    Text(
+                      'No messages yet. Type a message below!',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: muted),
+                    ),
+                  ],
+                ),
+              ),
+            )
+                : ListView.builder(
+              controller: _scrollController,
+              padding:
+              EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              reverse: true,
+              itemCount: _messages.length,
+              itemBuilder: (context, idx) {
+                final msg = _messages[idx];
+                final isMe = msg.senderId == currentUserId;
+                final isTemp = msg.id.startsWith('temp_');
+                final showDate = idx == _messages.length - 1 ||
+                    !_sameDay(msg.createdAt, _messages[idx + 1].createdAt);
+
+                return Column(
+                  children: [
+                    if (showDate)
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 12.w, vertical: 4.h),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.onSurface
+                                .withAlpha(16),
+                            borderRadius: BorderRadius.circular(12.r),
+                          ),
+                          child: Text(
+                            _dateLabel(msg.createdAt),
+                            style: TextStyle(
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w600,
+                                color: muted),
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 8.h),
+                      child: Align(
+                        alignment: isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: isMe
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.chat_bubble_outline_rounded,
-                                size: 48.sp, color: theme.colorScheme.primary.withAlpha(100)),
-                            SizedBox(height: 12.h),
-                            Text(
-                              'No messages yet. Type a message below!',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withAlpha(160),
+                            Container(
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.of(context)
+                                    .size
+                                    .width *
+                                    0.75,
                               ),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 14.w, vertical: 10.h),
+                              decoration: BoxDecoration(
+                                color: isMe ? primary : theme.cardColor,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(18.r),
+                                  topRight: Radius.circular(18.r),
+                                  bottomLeft: Radius.circular(
+                                      isMe ? 18.r : 4.r),
+                                  bottomRight: Radius.circular(
+                                      isMe ? 4.r : 18.r),
+                                ),
+                                border: isMe
+                                    ? null
+                                    : Border.all(
+                                    color: theme
+                                        .colorScheme.onSurface
+                                        .withAlpha(20)),
+                              ),
+                              child: Text(
+                                msg.content,
+                                style: TextStyle(
+                                  color: isMe
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.onSurface,
+                                  fontSize: 14.sp,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 3.h),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _formatTime(msg.createdAt),
+                                  style: TextStyle(
+                                      fontSize: 10.sp, color: muted),
+                                ),
+                                if (isMe) ...[
+                                  SizedBox(width: 4.w),
+                                  Icon(
+                                    isTemp
+                                        ? Icons.schedule_rounded
+                                        : Icons.done_all_rounded,
+                                    size: 13.sp,
+                                    color: isTemp ? muted : primary,
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                        reverse: true,
-                        itemCount: _messages.length,
-                        itemBuilder: (context, idx) {
-                          final msg = _messages[idx];
-                          final isMe = msg.senderId == currentUserId;
-                          return Padding(
-                            padding: EdgeInsets.only(bottom: 8.h),
-                            child: Column(
-                              crossAxisAlignment:
-                                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  constraints: BoxConstraints(
-                                    maxWidth: MediaQuery.of(context).size.width * 0.75,
-                                  ),
-                                  padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-                                  decoration: BoxDecoration(
-                                    color: isMe
-                                        ? theme.colorScheme.primary
-                                        : theme.cardColor,
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(16.r),
-                                      topRight: Radius.circular(16.r),
-                                      bottomLeft: Radius.circular(isMe ? 16.r : 2.r),
-                                      bottomRight: Radius.circular(isMe ? 2.r : 16.r),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withAlpha(10),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                    border: Border.all(
-                                      color: isMe ? Colors.transparent : theme.dividerColor.withAlpha(30),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    msg.content,
-                                    style: TextStyle(
-                                      color: isMe ? Colors.white : theme.colorScheme.onSurface,
-                                      fontSize: 14.sp,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 3.h),
-                                Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 4.w),
-                                  child: Text(
-                                    _formatTime(msg.createdAt),
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      color: theme.colorScheme.onSurface.withAlpha(120),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
                       ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
 
-          // Input Bar
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(15),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
+          // Floating pill input bar
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(12.w, 6.h, 12.w, 10.h),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 14.w),
+                      padding: EdgeInsets.symmetric(horizontal: 16.w),
                       decoration: BoxDecoration(
-                        color: theme.scaffoldBackgroundColor,
-                        borderRadius: BorderRadius.circular(24.r),
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(26.r),
                         border: Border.all(
-                          color: theme.dividerColor.withAlpha(50),
+                          color: theme.colorScheme.onSurface.withAlpha(30),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(12),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
                       ),
                       child: TextField(
                         controller: _msgController,
+                        minLines: 1,
+                        maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
                         style: TextStyle(fontSize: 14.sp),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'Type your message...',
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: EdgeInsets.symmetric(vertical: 14.h),
                         ),
                         onSubmitted: (_) => _send(),
                       ),
                     ),
                   ),
                   SizedBox(width: 8.w),
-                  GestureDetector(
-                    onTap: _sending ? null : _send,
-                    child: Container(
-                      padding: EdgeInsets.all(12.r),
+                  Tooltip(
+                    message: 'Send message',
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 48.r,
+                      height: 48.r,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
+                        color: canSend
+                            ? primary
+                            : theme.colorScheme.onSurface.withAlpha(30),
                         shape: BoxShape.circle,
                       ),
-                      child: _sending
-                          ? SizedBox(
-                              width: 18.r,
-                              height: 18.r,
-                              child: const CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Icon(
-                              Icons.send_rounded,
-                              color: Colors.white,
-                              size: 18.sp,
+                      child: InkResponse(
+                        onTap: canSend ? _send : null,
+                        customBorder: const CircleBorder(),
+                        child: Center(
+                          child: _sending
+                              ? SizedBox(
+                            width: 18.r,
+                            height: 18.r,
+                            child: CircularProgressIndicator(
+                              color: theme.colorScheme.onPrimary,
+                              strokeWidth: 2,
                             ),
+                          )
+                              : Icon(
+                            Icons.send_rounded,
+                            color: canSend
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurface.withAlpha(110),
+                            size: 20.sp,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],

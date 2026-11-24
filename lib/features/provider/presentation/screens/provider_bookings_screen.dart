@@ -26,6 +26,9 @@ class ProviderBookingsScreen extends StatelessWidget {
           elevation: 0,
           bottom: TabBar(
             isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            padding: EdgeInsets.zero,
+            labelPadding: EdgeInsets.symmetric(horizontal: 16.w),
             tabs: [
               Tab(text: 'Pending (${bookings.upcomingBookings.length})'),
               Tab(text: 'Ongoing (${bookings.acceptedBookings.length})'),

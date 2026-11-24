@@ -50,9 +50,26 @@ class AuthRemoteDataSource implements AuthDataSource {
       'name': user.name,
       'email': user.email,
       'phone': user.phone,
+      if (user.avatarUrl != null) 'avatarUrl': user.avatarUrl,
       if (user.businessName != null) 'businessName': user.businessName,
       if (user.businessCategory != null) 'businessCategory': user.businessCategory,
     });
+    return _parseUser(res.asMap);
+  }
+
+  @override
+  Future<UserModel> uploadAvatar(String filePath, String token, {UserModel? currentUser}) async {
+    final res = await _client.uploadFile(
+      ApiEndpoints.userAvatar,
+      filePath: filePath,
+      fieldName: 'avatar',
+    );
+    return _parseUser(res.asMap);
+  }
+
+  @override
+  Future<UserModel> removeAvatar(String token, UserModel currentUser) async {
+    final res = await _client.delete(ApiEndpoints.userAvatar);
     return _parseUser(res.asMap);
   }
 

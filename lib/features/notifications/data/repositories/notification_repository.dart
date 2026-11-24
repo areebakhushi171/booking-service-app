@@ -9,4 +9,5 @@ class NotificationRepository {
   Future<void> markAsRead(String id) => _source.markAsRead(id);
   Future<void> markAllAsRead() => _source.markAllAsRead();
   Future<void> deleteNotification(String id) => _source.deleteNotification(id);
+  Future<void> deleteAllNotifications() => _source.deleteAllNotifications();
 }

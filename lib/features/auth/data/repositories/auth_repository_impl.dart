@@ -63,6 +63,22 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<UserModel> uploadAvatar(String filePath, UserModel currentUser) async {
+    final token = _tokens.readToken() ?? '';
+    final updated = await _source.uploadAvatar(filePath, token, currentUser: currentUser);
+    await cacheUser(updated);
+    return updated;
+  }
+
+  @override
+  Future<UserModel> removeAvatar(UserModel currentUser) async {
+    final token = _tokens.readToken() ?? '';
+    final updated = await _source.removeAvatar(token, currentUser);
+    await cacheUser(updated);
+    return updated;
+  }
+
+  @override
   Future<void> changePassword(String currentPassword, String newPassword) async {
     final token = _tokens.readToken() ?? '';
     await _source.changePassword(currentPassword, newPassword, token);

@@ -57,7 +57,7 @@ void main() {
           ChangeNotifierProvider(create: (_) => AuthProvider(authRepository)),
           ChangeNotifierProvider(create: (_) => ServiceProvider(serviceRepository)),
           ChangeNotifierProvider(create: (_) => FavoritesProvider(favoritesRepository)),
-          ChangeNotifierProvider(create: (_) => NotificationProvider(notificationRepository)),
+          ChangeNotifierProvider(create: (_) => NotificationProvider(notificationRepository, loadOnStart: false)),
           ChangeNotifierProvider(create: (_) => ChatProvider(chatRepository)),
           ChangeNotifierProvider(create: (_) => ProviderServicesProvider(serviceRepository)),
           ProxyProvider<AuthProvider, BookingProvider>(
@@ -73,7 +73,8 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.byType(MaterialApp), findsOneWidget);
   });

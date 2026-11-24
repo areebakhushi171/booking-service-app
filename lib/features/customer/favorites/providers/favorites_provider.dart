@@ -7,17 +7,36 @@ class FavoritesProvider extends ChangeNotifier {
 
   List<String> _favorites = [];
   bool _hasUnreadFavorites = false;
+  String? _userId;
 
-  FavoritesProvider(this._repository) {
-    _load();
-  }
+  FavoritesProvider(this._repository);
 
   List<String> get favorites => _favorites;
   bool get hasUnreadFavorites => _hasUnreadFavorites;
 
-  Future<void> _load() async {
-    _favorites = await _repository.getFavoriteIds();
-    notifyListeners();
+  Future<void> attachUser({required String? userId, required bool isAuthenticated}) async {
+    if (!isAuthenticated || userId == null || userId.isEmpty) {
+      _favorites = [];
+      _hasUnreadFavorites = false;
+      _userId = null;
+      notifyListeners();
+      return;
+    }
+
+    if (_userId != userId) {
+      _userId = userId;
+      await loadFavorites();
+    }
+  }
+
+  Future<void> loadFavorites() async {
+    try {
+      _favorites = await _repository.getFavoriteIds();
+      notifyListeners();
+    } catch (_) {
+      _favorites = [];
+      notifyListeners();
+    }
   }
 
   bool isFavorite(String serviceId) => _favorites.contains(serviceId);
@@ -46,8 +65,8 @@ class FavoritesProvider extends ChangeNotifier {
         await _repository.addFavorite(serviceId);
       }
     } catch (_) {
-      // Revert on failure
-      await _load();
+      // Revert on failure by reloading from backend source of truth
+      await loadFavorites();
     }
   }
 }
