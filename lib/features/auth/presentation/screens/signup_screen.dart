@@ -89,6 +89,7 @@ class _SignupScreenState extends State<SignupScreen> {
               constraints: BoxConstraints(maxWidth: AppSizes.maxFormWidth),
               child: Form(
                 key: _formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

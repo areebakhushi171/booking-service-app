@@ -38,9 +38,19 @@ class _ProviderShellScreenState extends State<ProviderShellScreen> {
   Widget build(BuildContext context) {
     final chatProvider = context.watch<ChatProvider>();
 
-    return AdaptiveScaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return false;
+        }
+        return true;
+      },
+      child: AdaptiveScaffold(
       currentIndex: _currentIndex,
-      onNavigationIndexChanged: (i) => setState(() => _currentIndex = i),
+      onNavigationIndexChanged: (i) {
+        if (i != _currentIndex) setState(() => _currentIndex = i);
+      },
       destinations: [
         const AdaptiveScaffoldDestination(
           label: 'Dashboard',
@@ -69,9 +79,9 @@ class _ProviderShellScreenState extends State<ProviderShellScreen> {
           selectedIcon: Icons.person_rounded,
         ),
       ],
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
+      body: KeyedSubtree(
+        key: ValueKey('provider-tab-$_currentIndex'),
+        child: [
           ProviderDashboardScreen(
             onOpenTab: (i) => setState(() => _currentIndex = i),
           ),
@@ -79,7 +89,8 @@ class _ProviderShellScreenState extends State<ProviderShellScreen> {
           const ProviderBookingsScreen(),
           const ConversationsScreen(),
           const ProfileScreen(),
-        ],
+        ][_currentIndex],
+      ),
       ),
     );
   }

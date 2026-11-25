@@ -1,18 +1,14 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:bookease/core/constants/app_colors.dart';
-import 'package:bookease/core/widgets/circle_action_button.dart';
-import 'package:bookease/core/widgets/custom_button.dart';
 import 'package:bookease/core/widgets/empty_state_view.dart';
 import 'package:bookease/core/widgets/ui_kit.dart';
 import 'package:bookease/features/customer/bookings/data/models/booking_model.dart';
 import 'package:bookease/features/customer/bookings/presentation/screens/booking_detail_screen.dart';
 import 'package:bookease/features/customer/bookings/providers/booking_provider.dart';
-import 'package:bookease/features/customer/services/data/models/service_model.dart';
-import 'package:bookease/features/customer/services/providers/service_provider.dart';
+import 'package:bookease/features/provider/data/service_image_presets.dart';
 
 class MyBookingsScreen extends StatelessWidget {
   const MyBookingsScreen({super.key});
@@ -38,26 +34,31 @@ class MyBookingsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24.r),
               ),
               child: TabBar(
-                isScrollable: false,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 dividerColor: Colors.transparent,
                 indicatorSize: TabBarIndicatorSize.tab,
                 splashBorderRadius: BorderRadius.circular(20.r),
                 labelColor: theme.colorScheme.onPrimary,
                 unselectedLabelColor:
-                theme.colorScheme.onSurface.withAlpha(170),
+                    theme.colorScheme.onSurface.withAlpha(175),
                 labelStyle:
-                TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w700),
+                    TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700),
                 unselectedLabelStyle:
-                TextStyle(fontSize: 11.sp, fontWeight: FontWeight.w500),
+                    TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
                 indicator: BoxDecoration(
                   color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(20.r),
                 ),
                 tabs: [
-                  Tab(text: 'Pending (${p.upcomingBookings.length})'),
-                  Tab(text: 'Accepted (${p.acceptedBookings.length})'),
-                  Tab(text: 'Done (${p.completedBookings.length})'),
-                  Tab(text: 'Cancelled (${p.cancelledBookings.length})'),
+                  _BookingCountTab(
+                      label: 'Pending', count: p.upcomingBookings.length),
+                  _BookingCountTab(
+                      label: 'Accepted', count: p.acceptedBookings.length),
+                  _BookingCountTab(
+                      label: 'Done', count: p.completedBookings.length),
+                  _BookingCountTab(
+                      label: 'Cancelled', count: p.cancelledBookings.length),
                 ],
               ),
             ),
@@ -69,6 +70,40 @@ class MyBookingsScreen extends StatelessWidget {
             _BookingsTab(status: BookingStatus.confirmed),
             _BookingsTab(status: BookingStatus.completed),
             _BookingsTab(status: BookingStatus.cancelled),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingCountTab extends StatelessWidget {
+  final String label;
+  final int count;
+  const _BookingCountTab({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 8.w),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            SizedBox(width: 6.w),
+            Container(
+              width: 22.r,
+              height: 22.r,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: Text('$count',
+                  style:
+                      TextStyle(fontSize: 10.sp, fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
       ),
@@ -94,7 +129,7 @@ class _BookingsTab extends StatelessWidget {
         list = bookingProvider.upcomingBookings;
         emptyTitle = 'No Pending Appointments';
         emptyMessage =
-        'You have no pending bookings at the moment. Explore services to make your first appointment!';
+            'You have no pending bookings at the moment. Explore services to make your first appointment!';
         break;
       case BookingStatus.confirmed:
         list = bookingProvider.acceptedBookings;
@@ -109,7 +144,14 @@ class _BookingsTab extends StatelessWidget {
       case BookingStatus.cancelled:
         list = bookingProvider.cancelledBookings;
         emptyTitle = 'No Cancelled Bookings';
-        emptyMessage = 'You have not cancelled any bookings.';
+        emptyMessage = 'Cancelled and rejected bookings will appear here.';
+        break;
+      case BookingStatus.rejected:
+        list = bookingProvider.cancelledBookings
+            .where((booking) => booking.status == BookingStatus.rejected)
+            .toList();
+        emptyTitle = 'No Rejected Bookings';
+        emptyMessage = 'Rejected booking requests will appear here.';
         break;
     }
 
@@ -148,6 +190,8 @@ class _BookingsTab extends StatelessWidget {
       return (AppColors.success, 'Completed');
     case BookingStatus.cancelled:
       return (AppColors.error, 'Cancelled');
+    case BookingStatus.rejected:
+      return (AppColors.error, 'Rejected');
   }
 }
 
@@ -161,7 +205,8 @@ class _BookingCard extends StatelessWidget {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
         icon: CircleAvatar(
           radius: 28.r,
           backgroundColor: AppColors.error.withAlpha(30),
@@ -201,14 +246,15 @@ class _BookingCard extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(ctx);
               await context.read<BookingProvider>().cancelBooking(
-                booking.id,
-                reason: reasonController.text.trim().isNotEmpty
-                    ? reasonController.text.trim()
-                    : null,
-              );
+                    booking.id,
+                    reason: reasonController.text.trim().isNotEmpty
+                        ? reasonController.text.trim()
+                        : null,
+                  );
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Appointment has been cancelled.')),
+                  const SnackBar(
+                      content: Text('Appointment has been cancelled.')),
                 );
               }
             },
@@ -220,227 +266,13 @@ class _BookingCard extends StatelessWidget {
     reasonController.dispose();
   }
 
-  void _showRescheduleModal(BuildContext context) {
-    DateTime selectedDate =
-        DateTime.tryParse(booking.bookingDate) ?? DateTime.now();
-    String? selectedSlot = booking.startTime;
-    final bookingProvider = context.read<BookingProvider>();
-    final serviceProvider = context.read<ServiceProvider>();
-    final now = DateTime.now();
-    final days = List.generate(
-        30, (i) => DateTime(now.year, now.month, now.day + i));
-
-    final service = serviceProvider.services.firstWhere(
-          (s) => s.id == booking.serviceId,
-      orElse: () => ServiceModel(
-        id: booking.serviceId,
-        name: booking.serviceName,
-        category: booking.serviceCategory,
-        description: '',
-        price: booking.servicePrice,
-        durationMinutes: booking.durationMinutes,
-        imageUrl: booking.serviceImageUrl,
-      ),
-    );
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28.r)),
-      ),
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
-            final slots = bookingProvider.getSlotStatuses(
-              dateStr: dateStr,
-              service: service,
-              excludeBookingId: booking.id,
-            );
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20.w,
-                right: 20.w,
-                top: 12.h,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20.h,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40.w,
-                        height: 4.h,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withAlpha(50),
-                          borderRadius: BorderRadius.circular(4.r),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Reschedule Appointment',
-                            style: theme.textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        CircleActionButton(
-                          icon: Icons.close_rounded,
-                          tooltip: 'Close',
-                          color: theme.colorScheme.onSurface,
-                          size: 38.r,
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 6.h),
-                    Text(
-                      'Pick a new date and conflict-free slot for ${booking.serviceName}.',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withAlpha(160),
-                      ),
-                    ),
-                    SizedBox(height: 16.h),
-                    SizedBox(
-                      height: 78.h,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: days.length,
-                        itemBuilder: (_, i) {
-                          final d = days[i];
-                          final sel = d.year == selectedDate.year &&
-                              d.month == selectedDate.month &&
-                              d.day == selectedDate.day;
-                          return GestureDetector(
-                            onTap: () => setModalState(() {
-                              selectedDate = d;
-                              selectedSlot = null;
-                            }),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: 58.w,
-                              margin: EdgeInsets.only(right: 8.w),
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? theme.colorScheme.primary
-                                    : theme.cardColor,
-                                borderRadius: BorderRadius.circular(16.r),
-                                border: Border.all(
-                                  color: sel
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.onSurface
-                                      .withAlpha(25),
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    DateFormat('EEE').format(d).toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w600,
-                                      color: sel
-                                          ? theme.colorScheme.onPrimary
-                                          .withAlpha(200)
-                                          : theme.colorScheme.onSurface
-                                          .withAlpha(140),
-                                    ),
-                                  ),
-                                  SizedBox(height: 4.h),
-                                  Text(
-                                    DateFormat('dd').format(d),
-                                    style: TextStyle(
-                                      fontSize: 18.sp,
-                                      fontWeight: FontWeight.bold,
-                                      color: sel
-                                          ? theme.colorScheme.onPrimary
-                                          : theme.colorScheme.onSurface,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    SizedBox(height: 18.h),
-                    Text(
-                      'Available Time Slots',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 10.h),
-                    Wrap(
-                      spacing: 8.w,
-                      runSpacing: 8.h,
-                      children: slots.map((s) {
-                        final isSelected = selectedSlot == s.time;
-                        return ChoiceChip(
-                          label: Text(s.time),
-                          selected: isSelected,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14.r),
-                          ),
-                          onSelected: s.isAvailable
-                              ? (val) =>
-                              setModalState(() => selectedSlot = s.time)
-                              : null,
-                        );
-                      }).toList(),
-                    ),
-                    SizedBox(height: 24.h),
-                    SizedBox(
-                      width: double.infinity,
-                      child: CustomButton(
-                        label: 'Save New Schedule',
-                        onPressed: selectedSlot != null
-                            ? () async {
-                          Navigator.pop(ctx);
-                          await bookingProvider.rescheduleBooking(
-                            bookingId: booking.id,
-                            newDateStr: dateStr,
-                            newStartTime: selectedSlot!,
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Appointment rescheduled successfully!'),
-                              ),
-                            );
-                          }
-                        }
-                            : null,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _placeholderImage(double s) => Container(
-    width: s,
-    height: s,
-    color: Colors.grey.withAlpha(50),
-    child: Icon(Icons.image_not_supported_outlined,
-        size: 24.sp, color: Colors.grey),
-  );
+        width: s,
+        height: s,
+        color: Colors.grey.withAlpha(50),
+        child: Icon(Icons.image_not_supported_outlined,
+            size: 24.sp, color: Colors.grey),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -448,7 +280,10 @@ class _BookingCard extends StatelessWidget {
     final isUpcoming = booking.status == BookingStatus.upcoming;
     final isAccepted = booking.status == BookingStatus.confirmed;
     final (statusColor, statusLabel) = _statusMeta(context, booking.status);
-    final img = 64.r;
+    final img = 78.r;
+    final bookingImageUrl = booking.serviceImageUrl.trim().isNotEmpty
+        ? booking.serviceImageUrl.trim()
+        : ServiceImagePresets.forCategory(booking.serviceCategory);
     final muted = theme.colorScheme.onSurface.withAlpha(150);
 
     return Container(
@@ -462,7 +297,8 @@ class _BookingCard extends StatelessWidget {
       child: InkWell(
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => BookingDetailScreen(booking: booking)),
+          MaterialPageRoute(
+              builder: (_) => BookingDetailScreen(booking: booking)),
         ),
         child: Padding(
           padding: EdgeInsets.all(16.r),
@@ -474,10 +310,8 @@ class _BookingCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16.r),
-                    child: booking.serviceImageUrl.trim().isEmpty
-                        ? _placeholderImage(img)
-                        : CachedNetworkImage(
-                      imageUrl: booking.serviceImageUrl,
+                    child: CachedNetworkImage(
+                      imageUrl: bookingImageUrl,
                       width: img,
                       height: img,
                       fit: BoxFit.cover,
@@ -523,7 +357,7 @@ class _BookingCard extends StatelessWidget {
                         ),
                         SizedBox(height: 4.h),
                         Text(
-                          'Rs ${booking.servicePrice.toStringAsFixed(0)} • ${booking.durationMinutes} min',
+                          '${booking.formattedServicePrice} • ${booking.durationMinutes} min',
                           style: TextStyle(color: muted, fontSize: 13.sp),
                         ),
                       ],
@@ -584,42 +418,77 @@ class _BookingCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    CircleActionButton(
-                      icon: Icons.close_rounded,
-                      tooltip: 'Cancel booking',
-                      label: 'Cancel',
-                      color: AppColors.error,
+                    OutlinedButton.icon(
                       onPressed: () => _showCancelDialog(context),
-                    ),
-                    if (isUpcoming) ...[
-                      SizedBox(width: 18.w),
-                      CircleActionButton(
-                        icon: Icons.event_repeat_rounded,
-                        tooltip: 'Reschedule booking',
-                        label: 'Reschedule',
-                        color: theme.colorScheme.secondary,
-                        onPressed: () => _showRescheduleModal(context),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Cancel'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: BorderSide(color: AppColors.error.withAlpha(100)),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 12.w, vertical: 10.h),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14.r)),
                       ),
-                    ],
+                    ),
                     if (isAccepted) ...[
-                      SizedBox(width: 18.w),
-                      CircleActionButton(
-                        icon: Icons.check_rounded,
-                        tooltip: 'Mark as completed',
-                        label: 'Complete',
-                        color: AppColors.success,
+                      SizedBox(width: 8.w),
+                      FilledButton.icon(
                         onPressed: () async {
-                          await context
-                              .read<BookingProvider>()
-                              .completeBooking(booking.id);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Booking marked as completed!'),
-                              ),
-                            );
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Mark booking as done?'),
+                              content: const Text(
+                                  'Confirm that this service has been completed.'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, false),
+                                  child: const Text('Not yet'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, true),
+                                  child: const Text('Confirm'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true || !context.mounted) return;
+                          try {
+                            await context
+                                .read<BookingProvider>()
+                                .completeBooking(booking.id);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('Booking marked as completed!')),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content:
+                                      Text('Failed to complete booking: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           }
                         },
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Done'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 12.w, vertical: 10.h),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14.r)),
+                        ),
                       ),
                     ],
                   ],
@@ -638,7 +507,8 @@ class _MiniInfo extends StatelessWidget {
   final String text;
   final Color color;
 
-  const _MiniInfo({required this.icon, required this.text, required this.color});
+  const _MiniInfo(
+      {required this.icon, required this.text, required this.color});
 
   @override
   Widget build(BuildContext context) {

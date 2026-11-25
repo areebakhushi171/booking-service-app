@@ -23,11 +23,11 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   static const SliverGridDelegate _gridDelegate =
-  SliverGridDelegateWithMaxCrossAxisExtent(
-    maxCrossAxisExtent: 340,
-    mainAxisSpacing: 16,
-    crossAxisSpacing: 16,
-    childAspectRatio: 0.78,
+  SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+    mainAxisSpacing: 14,
+    crossAxisSpacing: 14,
+    childAspectRatio: 0.76,
   );
 
   @override
@@ -388,7 +388,7 @@ class HomeScreen extends StatelessWidget {
       BuildContext context, List<ServiceModel> services, String tagPrefix) {
     return SliverToBoxAdapter(
       child: SizedBox(
-        height: 250.h,
+        height: 190.h,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(horizontal: AppSizes.s20),

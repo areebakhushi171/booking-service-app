@@ -64,4 +64,20 @@ class Validators {
     }
     return null;
   }
+
+  static String? validateServicePrice(String? value) {
+    final price = value?.trim() ?? '';
+    if (price.isEmpty) {
+      return 'Please enter service price';
+    }
+
+    final amount = double.tryParse(price);
+    if (amount == null ||
+        !amount.isFinite ||
+        amount <= 0 ||
+        amount > 99999999.99) {
+      return 'Please enter valid service price';
+    }
+    return null;
+  }
 }

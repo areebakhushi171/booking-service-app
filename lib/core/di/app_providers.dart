@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
 import 'package:bookease/core/services/notification_service.dart';
+import 'package:bookease/core/services/socket_service.dart';
 import 'package:bookease/core/storage/local_storage_service.dart';
 import 'package:bookease/core/network/api_client.dart';
 import 'package:bookease/core/storage/token_storage.dart';
@@ -36,6 +39,8 @@ Future<List<SingleChildWidget>> buildAppProviders() async {
   final tokenStorage = TokenStorage(storage);
   final apiClient = ApiClient(tokenStorage);
 
+  final socketService = SocketService(tokenStorage);
+
   final authSource = AuthRemoteDataSource(apiClient);
   final authRepository = AuthRepositoryImpl(authSource, tokenStorage, storage);
   final settingsRepository = SettingsRepository(storage);
@@ -49,26 +54,84 @@ Future<List<SingleChildWidget>> buildAppProviders() async {
   final favoritesRemote = FavoritesRemoteDataSource(apiClient);
   final favoritesRepository = FavoritesRepositoryImpl(favoritesRemote);
 
-  final notificationRepository = NotificationRepository(NotificationRemoteDataSource(apiClient));
+  final notificationRepository =
+      NotificationRepository(NotificationRemoteDataSource(apiClient));
+  final notificationProvider = NotificationProvider(
+    notificationRepository,
+    loadOnStart: false,
+  );
+
   final chatRepository = ChatRepository(ChatRemoteDataSource(apiClient));
+  final chatProvider = ChatProvider(chatRepository, socketService);
+
+  final bookingProvider =
+      BookingProvider(bookingRepository, notificationService);
+  final serviceProvider = ServiceProvider(serviceRepository);
+  final providerServicesProvider = ProviderServicesProvider(serviceRepository);
+  final favoritesProvider = FavoritesProvider(favoritesRepository);
+  final authProvider = AuthProvider(authRepository, socketService);
+
+  socketService.onConnected = () {
+    unawaited(chatProvider.handleSocketConnected());
+    unawaited(bookingProvider.loadBookings());
+    unawaited(notificationProvider.loadNotifications());
+    unawaited(serviceProvider.loadServices());
+    unawaited(favoritesProvider.loadFavorites());
+    final user = authProvider.currentUser;
+    if (user?.isProvider == true) {
+      unawaited(providerServicesProvider.load(user!.id));
+      unawaited(bookingProvider.loadProviderDashboardSummary());
+    }
+  };
+  socketService.onDisconnected = chatProvider.handleSocketDisconnected;
+  socketService.onMessageNew = chatProvider.handleMessageNew;
+  socketService.onMessageRead = chatProvider.handleMessageRead;
+  socketService.onChatUnreadCountUpdated =
+      chatProvider.handleUnreadCountUpdated;
+  socketService.onConversationUpdated = chatProvider.handleConversationUpdated;
+  socketService.onTyping =
+      (payload) => chatProvider.handleTyping(payload, isTyping: true);
+  socketService.onStopTyping =
+      (payload) => chatProvider.handleTyping(payload, isTyping: false);
+  socketService.onBookingEvent = bookingProvider.handleRealtimeBooking;
+  socketService.onNotificationNew = notificationProvider.handleNotificationNew;
+  socketService.onNotificationRead =
+      notificationProvider.handleNotificationRead;
+  socketService.onNotificationDeleted =
+      notificationProvider.handleNotificationDeleted;
+  socketService.onNotificationUnreadCountUpdated =
+      notificationProvider.handleUnreadCountUpdated;
+  socketService.onPresenceEvent = chatProvider.handlePresence;
+  socketService.onServiceEvent = (_) {
+    unawaited(serviceProvider.loadServices());
+    unawaited(favoritesProvider.loadFavorites());
+    final user = authProvider.currentUser;
+    if (user?.isProvider == true) {
+      unawaited(providerServicesProvider.load(user!.id));
+    }
+  };
+  socketService.onFavoriteEvent = (_) {
+    unawaited(favoritesProvider.loadFavorites());
+  };
 
   return [
+    Provider<SocketService>.value(value: socketService),
     ChangeNotifierProvider(create: (_) => ThemeProvider(settingsRepository)),
-    ChangeNotifierProvider(create: (_) => AuthProvider(authRepository)),
-    ChangeNotifierProvider(create: (_) => ServiceProvider(serviceRepository)),
+    ChangeNotifierProvider.value(value: authProvider),
+    ChangeNotifierProvider.value(value: serviceProvider),
     ChangeNotifierProxyProvider<AuthProvider, FavoritesProvider>(
-      create: (_) => FavoritesProvider(favoritesRepository),
+      create: (_) => favoritesProvider,
       update: (_, auth, favorites) => favorites!
         ..attachUser(
           userId: auth.currentUser?.id,
           isAuthenticated: auth.isAuthenticated,
         ),
     ),
-    ChangeNotifierProvider(create: (_) => NotificationProvider(notificationRepository)),
-    ChangeNotifierProvider(create: (_) => ChatProvider(chatRepository)),
-    ChangeNotifierProvider(create: (_) => ProviderServicesProvider(serviceRepository)),
+    ChangeNotifierProvider.value(value: notificationProvider),
+    ChangeNotifierProvider.value(value: chatProvider),
+    ChangeNotifierProvider.value(value: providerServicesProvider),
     ChangeNotifierProxyProvider<AuthProvider, BookingProvider>(
-      create: (_) => BookingProvider(bookingRepository, notificationService),
+      create: (_) => bookingProvider,
       update: (_, auth, bookings) => bookings!
         ..attachUser(
           userId: auth.currentUser?.id,

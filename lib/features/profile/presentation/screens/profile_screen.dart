@@ -192,34 +192,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Preferences Card
             Card(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    title: const Text('Dark Mode Theme'),
-                    subtitle: const Text('Toggle light / dark Material 3 styling'),
-                    secondary: Icon(
-                      themeProvider.isDarkMode
-                          ? Icons.dark_mode_rounded
-                          : Icons.light_mode_rounded,
-                      color: theme.colorScheme.primary,
-                    ),
-                    value: themeProvider.isDarkMode,
-                    onChanged: (val) => themeProvider.setDarkMode(val),
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    title: const Text('Appointment Reminders'),
-                    subtitle:
-                        const Text('Receive local alerts 1 hour before bookings'),
-                    secondary: Icon(
-                      Icons.notifications_active_outlined,
-                      color: theme.colorScheme.secondary,
-                    ),
-                    value: user.notificationsEnabled,
-                    onChanged: (val) =>
-                        userProvider.setNotificationsEnabled(val),
-                  ),
-                ],
+              child: SwitchListTile(
+                title: const Text('Dark Mode Theme'),
+                subtitle: const Text('Toggle light / dark Material 3 styling'),
+                secondary: Icon(
+                  themeProvider.isDarkMode
+                      ? Icons.dark_mode_rounded
+                      : Icons.light_mode_rounded,
+                  color: theme.colorScheme.primary,
+                ),
+                value: themeProvider.isDarkMode,
+                onChanged: (val) => themeProvider.setDarkMode(val),
               ),
             ),
             SizedBox(height: 20.h),

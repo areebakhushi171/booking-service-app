@@ -24,7 +24,7 @@ class StatCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(22.r),
       child: Container(
-        padding: EdgeInsets.all(AppSizes.s16),
+        padding: EdgeInsets.all(AppSizes.s12),
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(22.r),
@@ -48,15 +48,15 @@ class StatCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 42.r,
-                  height: 42.r,
+                  width: 36.r,
+                  height: 36.r,
                   decoration: BoxDecoration(
                     color: color.withAlpha(30),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: color, size: 21.sp),
+                  child: Icon(icon, color: color, size: 18.sp),
                 ),
-                SizedBox(height: AppSizes.s12),
+                SizedBox(height: AppSizes.s8),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,

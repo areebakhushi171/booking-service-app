@@ -26,6 +26,7 @@ class ApiEndpoints {
   static const String myBookings = '/bookings/mine';
   static const String bookingHistory = '/bookings/history';
   static const String receivedBookings = '/bookings/received';
+  static const String providerBookingDashboard = '/bookings/dashboard';
   static String bookingById(String id) => '/bookings/$id';
   static String cancelBooking(String id) => '/bookings/$id/cancel';
   static String acceptBooking(String id) => '/bookings/$id/accept';
@@ -34,13 +35,16 @@ class ApiEndpoints {
 
   // Favorites
   static const String favorites = '/favorites';
-  static String favoriteByPropertyId(String propertyId) => '/favorites/$propertyId';
-  static String checkFavorite(String propertyId) => '/favorites/$propertyId/check';
+  static String favoriteByPropertyId(String propertyId) =>
+      '/favorites/$propertyId';
+  static String checkFavorite(String propertyId) =>
+      '/favorites/$propertyId/check';
 
   // Messaging / Conversations
   static const String conversations = '/conversations';
   static const String unreadConversationsCount = '/conversations/unread-count';
-  static String conversationMessages(String id) => '/conversations/$id/messages';
+  static String conversationMessages(String id) =>
+      '/conversations/$id/messages';
   static String readConversation(String id) => '/conversations/$id/read';
 
   // Notifications

@@ -214,6 +214,7 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
             constraints: BoxConstraints(maxWidth: AppSizes.maxFormWidth + 80),
             child: Form(
               key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: ListView(
                 padding: AppSizes.screenPadding,
                 children: [
@@ -465,18 +466,21 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                   SizedBox(height: AppSizes.s16),
 
                   AppTextField(
-                    label: 'Price (Rs)',
+                    label: 'Price (Rs) *',
                     hint: 'e.g. 2500',
                     icon: Icons.payments_rounded,
                     controller: _price,
-                    keyboardType: TextInputType.number,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     textInputAction: TextInputAction.next,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) {
-                      final n = double.tryParse((v ?? '').trim());
-                      if (n == null || n <= 0) return 'Enter a price above 0';
-                      return null;
-                    },
+                    inputFormatters: [
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        final validPrice =
+                            RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text);
+                        return validPrice ? newValue : oldValue;
+                      }),
+                    ],
+                    validator: Validators.validateServicePrice,
                   ),
                   SizedBox(height: AppSizes.s16),
 

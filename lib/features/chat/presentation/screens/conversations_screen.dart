@@ -5,6 +5,8 @@ import 'package:bookease/core/widgets/empty_state_view.dart';
 import 'package:bookease/core/widgets/shimmer_loading.dart';
 import 'package:bookease/core/widgets/ui_kit.dart';
 import 'package:bookease/features/chat/providers/chat_provider.dart';
+import 'package:bookease/features/auth/providers/auth_provider.dart';
+import 'package:bookease/core/widgets/user_avatar.dart';
 import 'package:bookease/features/chat/presentation/screens/chat_detail_screen.dart';
 
 class ConversationsScreen extends StatefulWidget {
@@ -21,16 +23,17 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = context.watch<ChatProvider>();
+    final currentUser = context.watch<AuthProvider>().user;
     final all = provider.conversations;
 
     final q = _query.trim().toLowerCase();
     final filtered = q.isEmpty
         ? all
         : all.where((c) {
-      return c.participantName.toLowerCase().contains(q) ||
-          c.propertyName.toLowerCase().contains(q) ||
-          (c.lastMessage ?? '').toLowerCase().contains(q);
-    }).toList();
+            return c.participantName.toLowerCase().contains(q) ||
+                c.propertyName.toLowerCase().contains(q) ||
+                (c.lastMessage ?? '').toLowerCase().contains(q);
+          }).toList();
 
     Widget body;
     if (provider.isLoading && all.isEmpty) {
@@ -47,7 +50,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         icon: Icons.chat_bubble_outline_rounded,
         title: 'No Conversations Yet',
         message:
-        'Messages with service providers or customers will appear here when you inquire about services.',
+            'Messages with service providers or customers will appear here when you inquire about services.',
         buttonText: 'Refresh',
         onButtonPressed: () => provider.loadConversations(),
       );
@@ -64,54 +67,70 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 suffixIcon: _query.isEmpty
                     ? null
                     : IconButton(
-                  tooltip: 'Clear',
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => setState(() => _query = ''),
-                ),
+                        tooltip: 'Clear',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => setState(() => _query = ''),
+                      ),
               ),
             ),
           ),
           Expanded(
             child: filtered.isEmpty
                 ? const EmptyStateView(
-              icon: Icons.search_off_rounded,
-              title: 'No matches',
-              message: 'Try a different name or keyword.',
-            )
+                    icon: Icons.search_off_rounded,
+                    title: 'No matches',
+                    message: 'Try a different name or keyword.',
+                  )
                 : RefreshIndicator(
-              onRefresh: () => provider.loadConversations(),
-              child: ListView.builder(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding:
-                EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                itemCount: filtered.length,
-                itemBuilder: (context, idx) {
-                  final conv = filtered[idx];
-                  return FadeSlideIn(
-                    index: idx,
-                    child: _ConversationTile(
-                      name: conv.participantName,
-                      property: conv.propertyName,
-                      lastMessage: conv.lastMessage,
-                      unread: conv.unreadCount,
-                      updatedAt: conv.updatedAt,
-                      onTap: () async {
-                        await provider.markRead(conv.id);
-                        if (context.mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ChatDetailScreen(conversation: conv),
-                            ),
-                          );
-                        }
+                    onRefresh: () => provider.loadConversations(),
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 16.w, vertical: 12.h),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, idx) {
+                        final conv = filtered[idx];
+                        return FadeSlideIn(
+                          index: idx,
+                          child: _ConversationTile(
+                            name: conv.displayNameFor(
+                                currentUserIsProvider: currentUser.isProvider),
+                            avatarUrl: conv.avatarFor(
+                                currentUserIsProvider: currentUser.isProvider),
+                            serviceImageUrl: conv.propertyImageUrl,
+                            property: conv.propertyName,
+                            lastMessage: conv.lastMessage,
+                            unread: conv.unreadCount,
+                            updatedAt: conv.updatedAt,
+                            onTap: () async {
+                              try {
+                                await provider.markRead(conv.id);
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Unable to mark messages as read: $error',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                              if (context.mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ChatDetailScreen(conversation: conv),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        );
                       },
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
           ),
         ],
       );
@@ -135,6 +154,8 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
 class _ConversationTile extends StatelessWidget {
   final String name;
+  final String? avatarUrl;
+  final String? serviceImageUrl;
   final String property;
   final String? lastMessage;
   final int unread;
@@ -143,6 +164,8 @@ class _ConversationTile extends StatelessWidget {
 
   const _ConversationTile({
     required this.name,
+    required this.avatarUrl,
+    required this.serviceImageUrl,
     required this.property,
     required this.lastMessage,
     required this.unread,
@@ -160,7 +183,7 @@ class _ConversationTile extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: 12.h),
       child: Material(
-        color: hasUnread ? primary.withAlpha(14) : theme.cardColor,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20.r),
         child: InkWell(
           borderRadius: BorderRadius.circular(20.r),
@@ -170,9 +193,7 @@ class _ConversationTile extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20.r),
               border: Border.all(
-                color: hasUnread
-                    ? primary.withAlpha(80)
-                    : theme.colorScheme.onSurface.withAlpha(20),
+                color: theme.colorScheme.onSurface.withAlpha(20),
               ),
             ),
             child: Row(
@@ -182,21 +203,16 @@ class _ConversationTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: hasUnread ? primary : primary.withAlpha(40),
+                      color: primary.withAlpha(40),
                       width: 2,
                     ),
                   ),
-                  child: CircleAvatar(
-                    radius: 24.r,
-                    backgroundColor: primary.withAlpha(30),
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                      style: TextStyle(
-                        color: primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18.sp,
-                      ),
-                    ),
+                  child: UserAvatar(
+                    avatarUrl: (avatarUrl?.trim().isNotEmpty ?? false)
+                        ? avatarUrl
+                        : serviceImageUrl,
+                    name: name,
+                    radius: 25.r,
                   ),
                 ),
                 SizedBox(width: 14.w),
@@ -208,7 +224,7 @@ class _ConversationTile extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              name,
+                              property,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -222,19 +238,21 @@ class _ConversationTile extends StatelessWidget {
                               _formatTime(updatedAt!),
                               style: TextStyle(
                                 fontSize: 11.sp,
-                                color: hasUnread ? primary : muted,
-                                fontWeight: hasUnread
-                                    ? FontWeight.w700
-                                    : FontWeight.normal,
+                                color: muted,
                               ),
                             ),
                         ],
                       ),
                       SizedBox(height: 4.h),
-                      StatusPill(
-                        label: property,
-                        color: theme.colorScheme.secondary,
-                        showDot: false,
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: theme.colorScheme.secondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.sp,
+                        ),
                       ),
                       SizedBox(height: 6.h),
                       Row(
@@ -246,12 +264,7 @@ class _ConversationTile extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 13.sp,
-                                color: hasUnread
-                                    ? theme.colorScheme.onSurface
-                                    : muted,
-                                fontWeight: hasUnread
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
+                                color: muted,
                               ),
                             ),
                           ),
@@ -291,16 +304,39 @@ class _ConversationTile extends StatelessWidget {
 }
 
 String _formatTime(DateTime dt) {
+  final localDt = dt.toLocal();
   final now = DateTime.now();
-  final sameDay = now.day == dt.day && now.month == dt.month && now.year == dt.year;
+  final sameDay = now.year == localDt.year &&
+      now.month == localDt.month &&
+      now.day == localDt.day;
   if (sameDay) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final h = localDt.hour > 12
+        ? localDt.hour - 12
+        : (localDt.hour == 0 ? 12 : localDt.hour);
+    final m = localDt.minute.toString().padLeft(2, '0');
+    final ampm = localDt.hour >= 12 ? 'PM' : 'AM';
+    return '$h:$m $ampm';
   }
   final yesterday = now.subtract(const Duration(days: 1));
-  if (yesterday.day == dt.day &&
-      yesterday.month == dt.month &&
-      yesterday.year == dt.year) {
+  final sameYesterday = yesterday.year == localDt.year &&
+      yesterday.month == localDt.month &&
+      yesterday.day == localDt.day;
+  if (sameYesterday) {
     return 'Yesterday';
   }
-  return '${dt.month}/${dt.day}';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
+  ];
+  return '${localDt.day} ${months[localDt.month - 1]}';
 }

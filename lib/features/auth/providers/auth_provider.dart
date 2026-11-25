@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:bookease/core/errors/app_exceptions.dart';
+import 'package:bookease/core/services/socket_service.dart';
 import 'package:bookease/features/auth/data/datasources/auth_datasource.dart';
 import 'package:bookease/features/auth/data/models/user_model.dart';
 import 'package:bookease/features/auth/data/repositories/auth_repository.dart';
@@ -9,6 +10,7 @@ enum AuthStatus { unknown, unauthenticated, authenticated }
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _repository;
+  final SocketService? _socketService;
 
   AuthStatus _status = AuthStatus.unknown;
   UserModel? _user;
@@ -16,7 +18,7 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  AuthProvider(this._repository);
+  AuthProvider(this._repository, [this._socketService]);
 
   static const UserModel _guest = UserModel(
     id: '',
@@ -41,6 +43,9 @@ class AuthProvider extends ChangeNotifier {
     _user = await _repository.restoreSession();
     _status =
         _user == null ? AuthStatus.unauthenticated : AuthStatus.authenticated;
+    if (_status == AuthStatus.authenticated) {
+      _socketService?.connect(userId: _user!.id);
+    }
     notifyListeners();
   }
 
@@ -86,6 +91,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       _user = await action();
       _status = AuthStatus.authenticated;
+      _socketService?.connect(userId: _user!.id);
       return true;
     } on AppException catch (e) {
       _errorMessage = e.message;
@@ -99,7 +105,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> changePassword(String currentPassword, String newPassword) async {
+  Future<bool> changePassword(
+      String currentPassword, String newPassword) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -110,7 +117,8 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = e.message;
       return false;
     } catch (_) {
-      _errorMessage = 'Failed to change password. Please check your current password.';
+      _errorMessage =
+          'Failed to change password. Please check your current password.';
       return false;
     } finally {
       _isLoading = false;
@@ -119,6 +127,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _socketService?.disconnect();
     await _repository.logout();
     _user = null;
     _status = AuthStatus.unauthenticated;

@@ -22,7 +22,8 @@ class BookingDetailScreen extends StatelessWidget {
         context.read<AuthProvider>().currentUser?.isProvider ?? false;
     final isUpcoming = booking.status == BookingStatus.upcoming;
     final isAccepted = booking.status == BookingStatus.confirmed;
-    final isCancelled = booking.status == BookingStatus.cancelled;
+    final isCancelled = booking.status == BookingStatus.cancelled ||
+        booking.status == BookingStatus.rejected;
 
     Color statusColor;
     String statusLabel;
@@ -45,13 +46,18 @@ class BookingDetailScreen extends StatelessWidget {
         break;
       case BookingStatus.cancelled:
         statusColor = AppColors.error;
-        statusLabel = 'Cancelled / Rejected';
+        statusLabel = 'Cancelled';
+        trackerStep = -1;
+        break;
+      case BookingStatus.rejected:
+        statusColor = AppColors.error;
+        statusLabel = 'Rejected';
         trackerStep = -1;
         break;
     }
 
-    final showActions =
-        (isProvider && isUpcoming) || (!isProvider && (isUpcoming || isAccepted));
+    final showActions = (isProvider && isUpcoming) ||
+        (!isProvider && (isUpcoming || isAccepted));
 
     return Scaffold(
       appBar: AppBar(title: Text('Booking #${booking.id}')),
@@ -79,26 +85,27 @@ class BookingDetailScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16.r),
                           child: booking.serviceImageUrl.isEmpty
                               ? Container(
-                            width: 76.r,
-                            height: 76.r,
-                            color: Colors.grey.withAlpha(50),
-                            child: Icon(
-                                Icons.image_not_supported_outlined,
-                                size: 28.sp),
-                          )
+                                  width: 76.r,
+                                  height: 76.r,
+                                  color: Colors.grey.withAlpha(50),
+                                  child: Icon(
+                                      Icons.image_not_supported_outlined,
+                                      size: 28.sp),
+                                )
                               : CachedNetworkImage(
-                            imageUrl: booking.serviceImageUrl,
-                            width: 76.r,
-                            height: 76.r,
-                            fit: BoxFit.cover,
-                          ),
+                                  imageUrl: booking.serviceImageUrl,
+                                  width: 76.r,
+                                  height: 76.r,
+                                  fit: BoxFit.cover,
+                                ),
                         ),
                         SizedBox(width: 16.w),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              StatusPill(label: statusLabel, color: statusColor),
+                              StatusPill(
+                                  label: statusLabel, color: statusColor),
                               SizedBox(height: 8.h),
                               Text(
                                 booking.serviceName,
@@ -111,8 +118,8 @@ class BookingDetailScreen extends StatelessWidget {
                               Text(
                                 booking.serviceCategory,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color:
-                                  theme.colorScheme.onSurface.withAlpha(160),
+                                  color: theme.colorScheme.onSurface
+                                      .withAlpha(160),
                                 ),
                               ),
                             ],
@@ -154,14 +161,14 @@ class BookingDetailScreen extends StatelessWidget {
                           icon: Icons.schedule_rounded,
                           label: 'Time',
                           value:
-                          '${booking.startTime} - ${booking.endTime} (${booking.durationMinutes} mins)',
+                              '${booking.startTime} - ${booking.endTime} (${booking.durationMinutes} mins)',
                           color: theme.colorScheme.secondary,
                         ),
                         SizedBox(height: 12.h),
                         InfoRow(
                           icon: Icons.payments_rounded,
                           label: 'Price',
-                          value: 'Rs ${booking.servicePrice.toStringAsFixed(0)}',
+                          value: booking.formattedServicePrice,
                           color: AppColors.success,
                         ),
                       ],
@@ -174,7 +181,9 @@ class BookingDetailScreen extends StatelessWidget {
                 FadeSlideIn(
                   index: 3,
                   child: SectionCard(
-                    title: isProvider ? 'Customer Information' : 'Service Provider',
+                    title: isProvider
+                        ? 'Customer Information'
+                        : 'Service Provider',
                     icon: Icons.person_rounded,
                     child: Column(
                       children: [
@@ -278,7 +287,7 @@ class BookingDetailScreen extends StatelessWidget {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                     content:
-                                    Text('Booking accepted successfully!')),
+                                        Text('Booking accepted successfully!')),
                               );
                             }
                           },
@@ -312,16 +321,28 @@ class BookingDetailScreen extends StatelessWidget {
                             color: AppColors.success,
                             size: 58.r,
                             onPressed: () async {
-                              await context
-                                  .read<BookingProvider>()
-                                  .completeBooking(booking.id);
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                              try {
+                                await context
+                                    .read<BookingProvider>()
+                                    .completeBooking(booking.id);
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('Booking marked as completed!')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
                                       content:
-                                      Text('Booking marked as completed!')),
-                                );
+                                          Text('Failed to complete booking: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                             },
                           ),
@@ -416,6 +437,7 @@ class _StatusTracker extends StatelessWidget {
       }
     }
 
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: children);
+    return Row(
+        crossAxisAlignment: CrossAxisAlignment.start, children: children);
   }
 }

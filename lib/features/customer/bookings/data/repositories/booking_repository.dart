@@ -3,9 +3,10 @@ import 'package:bookease/features/customer/bookings/data/models/booking_model.da
 /// Contract for booking persistence.
 abstract class BookingRepository {
   Future<List<BookingModel>> getBookings({bool isProvider = false});
-  Future<void> createBooking(BookingModel booking);
+  Future<ProviderDashboardSummary> getProviderDashboardSummary();
+  Future<BookingModel> createBooking(BookingModel booking);
   Future<void> updateBooking(BookingModel booking);
-  Future<void> acceptBooking(String id);
-  Future<void> rejectBooking(String id);
-  Future<void> updateStatus(String id, String status);
+  Future<BookingModel> acceptBooking(String id);
+  Future<BookingModel> rejectBooking(String id);
+  Future<BookingModel> updateStatus(String id, String status);
 }

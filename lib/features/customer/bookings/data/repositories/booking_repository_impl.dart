@@ -13,8 +13,13 @@ class BookingRepositoryImpl implements BookingRepository {
   }
 
   @override
-  Future<void> createBooking(BookingModel booking) async {
-    await _remote.createBooking(booking);
+  Future<ProviderDashboardSummary> getProviderDashboardSummary() {
+    return _remote.fetchProviderDashboardSummary();
+  }
+
+  @override
+  Future<BookingModel> createBooking(BookingModel booking) {
+    return _remote.createBooking(booking);
   }
 
   @override
@@ -23,17 +28,17 @@ class BookingRepositoryImpl implements BookingRepository {
   }
 
   @override
-  Future<void> acceptBooking(String id) async {
-    await _remote.acceptBooking(id);
+  Future<BookingModel> acceptBooking(String id) {
+    return _remote.acceptBooking(id);
   }
 
   @override
-  Future<void> rejectBooking(String id) async {
-    await _remote.rejectBooking(id);
+  Future<BookingModel> rejectBooking(String id) {
+    return _remote.rejectBooking(id);
   }
 
   @override
-  Future<void> updateStatus(String id, String status) async {
-    await _remote.updateStatus(id, status);
+  Future<BookingModel> updateStatus(String id, String status) {
+    return _remote.updateStatus(id, status);
   }
 }

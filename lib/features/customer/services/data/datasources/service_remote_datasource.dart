@@ -60,11 +60,15 @@ class ServiceRemoteDataSource {
     File? mainImageFile,
     List<File> galleryFiles,
   ) async {
+    if (mainImageFile == null && galleryFiles.isEmpty) {
+      return createService(service);
+    }
+
     final map = <String, dynamic>{
-      'name': service.name,
-      'title': service.name,
+      'name': service.name.trim(),
+      'title': service.name.trim(),
       'category': service.category,
-      'description': service.description,
+      'description': service.description.trim(),
       'price': service.price.toString(),
       'duration': service.durationMinutes.toString(),
       'durationMinutes': service.durationMinutes.toString(),
@@ -79,7 +83,9 @@ class ServiceRemoteDataSource {
 
     if (mainImageFile != null) {
       final fileName = mainImageFile.path.split('/').last;
-      map['mainImage'] = await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
+      final file = await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
+      map['mainImage'] = file;
+      map['image'] = file;
     } else if (service.imageUrl.isNotEmpty) {
       map['imageUrl'] = service.imageUrl;
     }
@@ -91,6 +97,7 @@ class ServiceRemoteDataSource {
         multipartGallery.add(await MultipartFile.fromFile(f.path, filename: fileName));
       }
       map['galleryImages'] = multipartGallery;
+      map['gallery'] = multipartGallery;
     }
 
     final formData = FormData.fromMap(map);
@@ -104,11 +111,15 @@ class ServiceRemoteDataSource {
     List<File> galleryFiles,
     List<String> existingGalleryUrls,
   ) async {
+    if (mainImageFile == null && galleryFiles.isEmpty) {
+      return updateService(service);
+    }
+
     final map = <String, dynamic>{
-      'name': service.name,
-      'title': service.name,
+      'name': service.name.trim(),
+      'title': service.name.trim(),
       'category': service.category,
-      'description': service.description,
+      'description': service.description.trim(),
       'price': service.price.toString(),
       'duration': service.durationMinutes.toString(),
       'durationMinutes': service.durationMinutes.toString(),
@@ -124,7 +135,9 @@ class ServiceRemoteDataSource {
 
     if (mainImageFile != null) {
       final fileName = mainImageFile.path.split('/').last;
-      map['mainImage'] = await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
+      final file = await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
+      map['mainImage'] = file;
+      map['image'] = file;
     } else if (service.imageUrl.isNotEmpty) {
       map['imageUrl'] = service.imageUrl;
     }
@@ -136,6 +149,7 @@ class ServiceRemoteDataSource {
         multipartGallery.add(await MultipartFile.fromFile(f.path, filename: fileName));
       }
       map['galleryImages'] = multipartGallery;
+      map['gallery'] = multipartGallery;
     }
 
     final formData = FormData.fromMap(map);

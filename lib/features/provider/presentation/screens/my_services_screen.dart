@@ -145,14 +145,6 @@ class MyServicesScreen extends StatelessWidget {
                     service: s,
                     onEdit: () => _openForm(context, s),
                     onDelete: () => _confirmDelete(context, s),
-                    onActiveChanged: (v) async {
-                      await context
-                          .read<ProviderServicesProvider>()
-                          .setActive(s, v);
-                      if (context.mounted) {
-                        context.read<ServiceProvider>().loadServices();
-                      }
-                    },
                   ),
                 );
               },

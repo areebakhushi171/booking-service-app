@@ -46,10 +46,36 @@ class ServiceModel {
     return defaultValue;
   }
 
-  static int _parseInt(dynamic value, [int defaultValue = 0]) {
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? defaultValue;
-    return defaultValue;
+  static int _parseDuration(Map<String, dynamic> json) {
+    final candidates = [
+      json['durationMinutes'],
+      json['duration'],
+      json['duration_minutes'],
+      json['durationInMinutes'],
+      json['serviceDuration'],
+      json['time'],
+    ];
+
+    for (final val in candidates) {
+      if (val is num && val > 0) return val.toInt();
+      if (val is String && val.trim().isNotEmpty) {
+        final parsed = int.tryParse(val.trim());
+        if (parsed != null && parsed > 0) return parsed;
+
+        final match = RegExp(r'(\d+)').firstMatch(val.trim());
+        if (match != null) {
+          final extracted = int.tryParse(match.group(1)!);
+          if (extracted != null && extracted > 0) {
+            if (val.toLowerCase().contains('hr') || val.toLowerCase().contains('hour')) {
+              return extracted * 60;
+            }
+            return extracted;
+          }
+        }
+      }
+    }
+
+    return 60;
   }
 
   static bool _parseBool(dynamic value, [bool defaultValue = false]) {
@@ -115,7 +141,7 @@ class ServiceModel {
       category: (json['category'] ?? '').toString(),
       description: (json['description'] ?? '').toString(),
       price: _parseDouble(json['price'] ?? json['pricePerNight']),
-      durationMinutes: _parseInt(json['durationMinutes'] ?? json['duration'], 60),
+      durationMinutes: _parseDuration(json),
       country: (json['country'] ?? 'Pakistan').toString(),
       city: (json['city'] ?? 'Karachi').toString(),
       imageUrl: imgUrl,

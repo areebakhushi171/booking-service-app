@@ -42,9 +42,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       const ProfileScreen(),
     ];
 
-    return AdaptiveScaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return false;
+        }
+        return true;
+      },
+      child: AdaptiveScaffold(
       currentIndex: _currentIndex,
-      onNavigationIndexChanged: (idx) => setState(() => _currentIndex = idx),
+      onNavigationIndexChanged: (idx) {
+        if (idx != _currentIndex) setState(() => _currentIndex = idx);
+      },
       destinations: [
         const AdaptiveScaffoldDestination(
           label: 'Home',
@@ -68,9 +78,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           selectedIcon: Icons.person_rounded,
         ),
       ],
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
+      body: KeyedSubtree(
+        key: ValueKey('customer-tab-$_currentIndex'),
+        child: screens[_currentIndex],
+      ),
       ),
     );
   }

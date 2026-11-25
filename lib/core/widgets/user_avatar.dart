@@ -40,7 +40,7 @@ class UserAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: theme.colorScheme.primary.withAlpha(180),
+          color: theme.colorScheme.primary.withAlpha(70),
           width: 1.5.w,
         ),
       ),

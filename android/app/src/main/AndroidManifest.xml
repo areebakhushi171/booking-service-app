@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for network communication with backend server / local LAN -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="service_booking_app"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- Note: usesCleartextTraffic="true" is enabled temporarily for local HTTP LAN testing (http://192.168.1.10:3000/api). Use HTTPS in production. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

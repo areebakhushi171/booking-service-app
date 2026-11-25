@@ -51,7 +51,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
   void _shareBooking() {
     final b = widget.booking;
     final text =
-        'BookEase Booking Confirmed! Ref: ${b.id}\nService: ${b.serviceName}\nDate: ${b.bookingDate} (${b.startTime} - ${b.endTime})\nTotal: Rs ${b.servicePrice.toStringAsFixed(0)}';
+        'BookEase Booking Confirmed! Ref: ${b.id}\nService: ${b.serviceName}\nDate: ${b.bookingDate} (${b.startTime} - ${b.endTime})\nTotal: ${b.formattedServicePrice}';
     Share.share(text, subject: 'My BookEase Appointment');
   }
 
@@ -84,7 +84,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.success.withAlpha(((1 - t) * 90).toInt()),
+                      color:
+                          AppColors.success.withAlpha(((1 - t) * 90).toInt()),
                       width: 2,
                     ),
                   ),
@@ -115,7 +116,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                   ),
                 ],
               ),
-              child: Icon(Icons.check_rounded, size: 54.sp, color: Colors.white),
+              child:
+                  Icon(Icons.check_rounded, size: 54.sp, color: Colors.white),
             ),
           ),
         ],
@@ -134,7 +136,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
         if (!didPop) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-                (route) => false,
+            (route) => false,
           );
         }
       },
@@ -208,7 +210,8 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                             _row('Time Slot',
                                 '${booking.startTime} - ${booking.endTime}'),
                             SizedBox(height: 10.h),
-                            _row('Duration', '${booking.durationMinutes} minutes'),
+                            _row('Duration',
+                                '${booking.durationMinutes} minutes'),
                           ],
                         ),
                         bottom: Column(
@@ -219,7 +222,7 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                             SizedBox(height: 14.h),
                             _row(
                               'Total Amount',
-                              'Rs ${booking.servicePrice.toStringAsFixed(0)}',
+                              booking.formattedServicePrice,
                               highlight: true,
                             ),
                           ],
@@ -259,9 +262,9 @@ class _BookingConfirmationScreenState extends State<BookingConfirmationScreen>
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
                               builder: (_) =>
-                              const MainNavigationScreen(initialIndex: 1),
+                                  const MainNavigationScreen(initialIndex: 1),
                             ),
-                                (route) => false,
+                            (route) => false,
                           );
                         },
                       ),
@@ -332,7 +335,8 @@ class _TicketCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Padding(padding: EdgeInsets.fromLTRB(18.r, 18.r, 18.r, 8.r), child: top),
+          Padding(
+              padding: EdgeInsets.fromLTRB(18.r, 18.r, 18.r, 8.r), child: top),
           SizedBox(
             height: r * 2,
             child: Row(
@@ -342,8 +346,8 @@ class _TicketCard extends StatelessWidget {
                   child: Container(
                     width: r * 2,
                     height: r * 2,
-                    decoration:
-                    BoxDecoration(color: notchColor, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: notchColor, shape: BoxShape.circle),
                   ),
                 ),
                 Expanded(
@@ -354,7 +358,7 @@ class _TicketCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: List.generate(
                           n,
-                              (_) => Container(
+                          (_) => Container(
                             width: 5,
                             height: 1.6,
                             color: theme.colorScheme.onSurface.withAlpha(50),
@@ -369,14 +373,16 @@ class _TicketCard extends StatelessWidget {
                   child: Container(
                     width: r * 2,
                     height: r * 2,
-                    decoration:
-                    BoxDecoration(color: notchColor, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: notchColor, shape: BoxShape.circle),
                   ),
                 ),
               ],
             ),
           ),
-          Padding(padding: EdgeInsets.fromLTRB(18.r, 8.r, 18.r, 18.r), child: bottom),
+          Padding(
+              padding: EdgeInsets.fromLTRB(18.r, 8.r, 18.r, 18.r),
+              child: bottom),
         ],
       ),
     );

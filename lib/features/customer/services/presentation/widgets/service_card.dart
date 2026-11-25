@@ -33,7 +33,7 @@ class ServiceCard extends StatelessWidget {
 
     if (isHorizontal) {
       return Container(
-        width: 250.w,
+        width: 210.w,
         margin: EdgeInsets.only(right: AppSizes.s16),
         child: card,
       );
@@ -60,7 +60,7 @@ class ServiceCard extends StatelessWidget {
           children: [
             // Image with Hero animation & favorite button
             SizedBox(
-              height: 110.h,
+              height: isHorizontal ? 72.h : 110.h,
               width: double.infinity,
               child: Stack(
                 fit: StackFit.expand,

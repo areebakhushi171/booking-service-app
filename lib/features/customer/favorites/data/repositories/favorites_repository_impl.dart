@@ -1,5 +1,6 @@
 import 'package:bookease/features/customer/favorites/data/datasources/favorites_remote_datasource.dart';
 import 'package:bookease/features/customer/favorites/data/repositories/favorites_repository.dart';
+import 'package:bookease/features/customer/services/data/models/service_model.dart';
 
 class FavoritesRepositoryImpl implements FavoritesRepository {
   final FavoritesRemoteDataSource _remote;
@@ -7,8 +8,8 @@ class FavoritesRepositoryImpl implements FavoritesRepository {
   FavoritesRepositoryImpl(this._remote);
 
   @override
-  Future<List<String>> getFavoriteIds() async {
-    return await _remote.fetchFavoriteIds();
+  Future<List<ServiceModel>> getFavoriteServices() async {
+    return await _remote.fetchFavoriteServices();
   }
 
   @override

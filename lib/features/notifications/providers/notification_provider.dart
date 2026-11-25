@@ -9,6 +9,7 @@ class NotificationProvider extends ChangeNotifier {
   final Set<String> _locallyReadIds = {};
   bool _isLoading = false;
   String? _errorMessage;
+  int? _serverUnreadCount;
 
   NotificationProvider(this._repository, {bool loadOnStart = true}) {
     if (loadOnStart) {
@@ -20,7 +21,8 @@ class NotificationProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+  int get unreadCount =>
+      _serverUnreadCount ?? _notifications.where((n) => !n.isRead).length;
 
   Future<void> loadNotifications() async {
     _isLoading = true;
@@ -32,12 +34,64 @@ class NotificationProvider extends ChangeNotifier {
         if (_locallyReadIds.contains(n.id)) return n.copyWith(isRead: true);
         return n;
       }).toList();
+      _serverUnreadCount =
+          _notifications.where((notification) => !notification.isRead).length;
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void handleNotificationNew(Map<String, dynamic> payload) {
+    final notification = NotificationModel.fromJson(payload);
+    if (notification.id.isEmpty) return;
+    _notifications.removeWhere((item) => item.id == notification.id);
+    _notifications.insert(0, notification);
+    _locallyReadIds.remove(notification.id);
+    notifyListeners();
+  }
+
+  void handleNotificationRead(Map<String, dynamic> payload) {
+    final notificationId = payload['notificationId']?.toString();
+    if (payload['all'] == true) {
+      _notifications = _notifications
+          .map((notification) => notification.copyWith(isRead: true))
+          .toList();
+      _locallyReadIds
+          .addAll(_notifications.map((notification) => notification.id));
+    } else if (notificationId != null) {
+      _locallyReadIds.add(notificationId);
+      _notifications = _notifications
+          .map((notification) => notification.id == notificationId
+              ? notification.copyWith(isRead: true)
+              : notification)
+          .toList();
+    }
+    _setUnreadCount(payload['unreadCount']);
+    notifyListeners();
+  }
+
+  void handleNotificationDeleted(Map<String, dynamic> payload) {
+    final notificationId = payload['notificationId']?.toString();
+    if (notificationId != null) {
+      _notifications
+          .removeWhere((notification) => notification.id == notificationId);
+      _locallyReadIds.remove(notificationId);
+    }
+    _setUnreadCount(payload['unreadCount']);
+    notifyListeners();
+  }
+
+  void handleUnreadCountUpdated(Map<String, dynamic> payload) {
+    _setUnreadCount(payload['unreadCount']);
+    notifyListeners();
+  }
+
+  void _setUnreadCount(dynamic value) {
+    final count = int.tryParse(value?.toString() ?? '');
+    if (count != null) _serverUnreadCount = count;
   }
 
   Future<void> markAsRead(String id) async {
@@ -56,7 +110,8 @@ class NotificationProvider extends ChangeNotifier {
     for (final n in _notifications) {
       _locallyReadIds.add(n.id);
     }
-    _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+    _notifications =
+        _notifications.map((n) => n.copyWith(isRead: true)).toList();
     notifyListeners();
     try {
       await _repository.markAllAsRead();

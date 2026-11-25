@@ -10,7 +10,9 @@ class BookingRemoteDataSource {
     final list = data is List
         ? data
         : (data is Map ? (data['bookings'] ?? data['data'] ?? []) as List : []);
-    return list.map((e) => BookingModel.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => BookingModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   BookingModel _parseSingle(dynamic data) {
@@ -21,8 +23,10 @@ class BookingRemoteDataSource {
   }
 
   Future<List<BookingModel>> fetchBookings({bool isProvider = false}) async {
-    final firstChoice = isProvider ? ApiEndpoints.receivedBookings : ApiEndpoints.myBookings;
-    final fallbackChoice = isProvider ? ApiEndpoints.myBookings : ApiEndpoints.receivedBookings;
+    final firstChoice =
+        isProvider ? ApiEndpoints.receivedBookings : ApiEndpoints.myBookings;
+    final fallbackChoice =
+        isProvider ? ApiEndpoints.myBookings : ApiEndpoints.receivedBookings;
 
     try {
       final res = await _client.get(firstChoice);
@@ -37,18 +41,34 @@ class BookingRemoteDataSource {
     }
   }
 
+  Future<ProviderDashboardSummary> fetchProviderDashboardSummary() async {
+    final response = await _client.get(ApiEndpoints.providerBookingDashboard);
+    final data = response.data;
+    final json = data is Map && data['data'] is Map
+        ? Map<String, dynamic>.from(data['data'] as Map)
+        : data is Map
+            ? Map<String, dynamic>.from(data)
+            : <String, dynamic>{};
+    return ProviderDashboardSummary.fromJson(json);
+  }
+
   Future<BookingModel> createBooking(BookingModel booking) async {
-    final res = await _client.post(ApiEndpoints.bookings, body: booking.toJson());
+    final res = await _client.post(
+      ApiEndpoints.bookings,
+      body: booking.toCreateRequestJson(),
+    );
     return _parseSingle(res.data);
   }
 
   Future<BookingModel> updateBooking(BookingModel booking) async {
-    final res = await _client.patch(ApiEndpoints.bookingById(booking.id), body: booking.toJson());
+    final res = await _client.patch(ApiEndpoints.bookingById(booking.id),
+        body: booking.toJson());
     return _parseSingle(res.data);
   }
 
   Future<BookingModel> cancelBooking(String id, {String? reason}) async {
-    final res = await _client.patch(ApiEndpoints.cancelBooking(id), body: {'reason': reason ?? 'Cancelled'});
+    final res = await _client.patch(ApiEndpoints.cancelBooking(id),
+        body: {'reason': reason ?? 'Cancelled'});
     return _parseSingle(res.data);
   }
 
@@ -64,12 +84,10 @@ class BookingRemoteDataSource {
 
   Future<BookingModel> updateStatus(String id, String status) async {
     final uppercaseStatus = status.toUpperCase();
-    try {
-      final res = await _client.patch(ApiEndpoints.bookingStatus(id), body: {'status': uppercaseStatus});
-      return _parseSingle(res.data);
-    } catch (_) {
-      final res = await _client.patch(ApiEndpoints.bookingStatus(id), body: {'status': status.toLowerCase()});
-      return _parseSingle(res.data);
-    }
+    final res = await _client.patch(
+      ApiEndpoints.bookingStatus(id),
+      body: {'status': uppercaseStatus},
+    );
+    return _parseSingle(res.data);
   }
 }

@@ -124,6 +124,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           padding: AppSizes.screenPadding,
           child: Form(
             key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
