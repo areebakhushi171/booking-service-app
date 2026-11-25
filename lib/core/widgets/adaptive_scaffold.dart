@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:bookease/core/constants/app_colors.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AdaptiveScaffoldDestination {
   final String label;
@@ -15,13 +16,13 @@ class AdaptiveScaffoldDestination {
   });
 }
 
+/// Phones: floating pill bottom navigation (selected item expands with its
+/// label). Wide screens: a styled navigation rail.
 class AdaptiveScaffold extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onNavigationIndexChanged;
   final List<AdaptiveScaffoldDestination> destinations;
   final Widget body;
-  final PreferredSizeWidget? appBar;
-  final Widget? floatingActionButton;
 
   const AdaptiveScaffold({
     super.key,
@@ -29,101 +30,191 @@ class AdaptiveScaffold extends StatelessWidget {
     required this.onNavigationIndexChanged,
     required this.destinations,
     required this.body,
-    this.appBar,
-    this.floatingActionButton,
   });
-
-  Widget _buildIcon(AdaptiveScaffoldDestination d, bool selected) {
-    final iconWidget = Icon(selected ? d.selectedIcon : d.icon);
-    if (d.badgeCount > 0) {
-      return Badge(
-        label: Text('${d.badgeCount}'),
-        child: iconWidget,
-      );
-    }
-    return iconWidget;
-  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final navBgColor = isDark ? AppColors.surfaceDark : null;
-    final navIndicatorColor =
-        isDark ? Theme.of(context).colorScheme.primary.withAlpha(60) : null;
+    final theme = Theme.of(context);
+    final wide = MediaQuery.of(context).size.width >= 800;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMediumOrLarge = constraints.maxWidth >= 720;
-
-        if (isMediumOrLarge) {
-          return Scaffold(
-            appBar: appBar,
-            floatingActionButton: floatingActionButton,
-            body: Row(
-              children: [
-                NavigationRail(
+    if (wide) {
+      return Scaffold(
+        body: Row(
+          children: [
+            SafeArea(
+              child: Container(
+                margin: EdgeInsets.all(12.r),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                      color: theme.colorScheme.onSurface.withAlpha(20)),
+                ),
+                child: NavigationRail(
+                  backgroundColor: Colors.transparent,
                   selectedIndex: currentIndex,
                   onDestinationSelected: onNavigationIndexChanged,
                   labelType: NavigationRailLabelType.all,
-                  backgroundColor: navBgColor,
-                  indicatorColor: navIndicatorColor,
-                  leading: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_month_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  destinations: destinations.map((d) {
-                    final selected = destinations.indexOf(d) == currentIndex;
-                    return NavigationRailDestination(
-                      icon: _buildIcon(d, selected),
-                      selectedIcon: _buildIcon(d, true),
-                      label: Text(d.label),
-                    );
-                  }).toList(),
+                  indicatorColor: theme.colorScheme.primary.withAlpha(30),
+                  destinations: [
+                    for (final d in destinations)
+                      NavigationRailDestination(
+                        icon: _badged(d, d.icon),
+                        selectedIcon: _badged(d, d.selectedIcon),
+                        label: Text(d.label),
+                      ),
+                  ],
                 ),
-                const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: body),
+              ),
+            ),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: body,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 12.h),
+          child: Container(
+            height: 66.h,
+            padding: EdgeInsets.symmetric(horizontal: 8.w),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(32.r),
+              border: Border.all(
+                color: theme.colorScheme.onSurface.withAlpha(18),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(
+                      theme.brightness == Brightness.dark ? 90 : 28),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
               ],
             ),
-          );
-        }
-
-        return Scaffold(
-          appBar: appBar,
-          floatingActionButton: floatingActionButton,
-          body: body,
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: currentIndex,
-            onDestinationSelected: onNavigationIndexChanged,
-            elevation: 3,
-            backgroundColor: navBgColor,
-            indicatorColor: navIndicatorColor,
-            destinations: destinations.map((d) {
-              final selected = destinations.indexOf(d) == currentIndex;
-              return NavigationDestination(
-                icon: _buildIcon(d, selected),
-                selectedIcon: _buildIcon(d, true),
-                label: d.label,
-              );
-            }).toList(),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (var i = 0; i < destinations.length; i++)
+                  _NavItem(
+                    destination: destinations[i],
+                    selected: i == currentIndex,
+                    onTap: () {
+                      if (i != currentIndex) {
+                        HapticFeedback.selectionClick();
+                        onNavigationIndexChanged(i);
+                      }
+                    },
+                  ),
+              ],
+            ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  static Widget _badged(AdaptiveScaffoldDestination d, IconData icon) {
+    return Badge(
+      isLabelVisible: d.badgeCount > 0,
+      label: Text(d.badgeCount > 99 ? '99+' : '${d.badgeCount}'),
+      child: Icon(icon),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final AdaptiveScaffoldDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final inactive = theme.colorScheme.onSurface.withAlpha(140);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: destination.label,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          height: 48.h,
+          constraints: BoxConstraints(minWidth: 48.r),
+          padding: EdgeInsets.symmetric(horizontal: selected ? 14.w : 10.w),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? LinearGradient(
+              colors: [primary, theme.colorScheme.secondary],
+            )
+                : null,
+            borderRadius: BorderRadius.circular(26.r),
+            boxShadow: selected
+                ? [
+              BoxShadow(
+                color: primary.withAlpha(80),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Badge(
+                isLabelVisible: destination.badgeCount > 0,
+                label: Text(destination.badgeCount > 99 ? '99+' : '${destination.badgeCount}'),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                  child: Icon(
+                    selected ? destination.selectedIcon : destination.icon,
+                    key: ValueKey(selected),
+                    size: 24.sp,
+                    color: selected ? theme.colorScheme.onPrimary : inactive,
+                  ),
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                child: selected
+                    ? Padding(
+                  padding: EdgeInsets.only(left: 6.w),
+                  child: Text(
+                    destination.label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onPrimary,
+                    ),
+                  ),
+                )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

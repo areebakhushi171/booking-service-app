@@ -26,11 +26,12 @@ class BookingProvider extends ChangeNotifier {
   final Clock _clock;
 
   List<BookingModel> _all = [];
-  final Set<String> _completedBookingIds = {};
-  final Set<String> _confirmedBookingIds = {};
-  final Set<String> _cancelledBookingIds = {};
-
+  final Set<String> _inFlightBookingIds = {};
   bool _isLoading = false;
+  bool _isDashboardLoading = false;
+  ProviderDashboardSummary? _dashboardSummary;
+  String? _dashboardError;
+  String? _errorMessage;
 
   String? _userId;
   bool _isProvider = false;
@@ -39,29 +40,37 @@ class BookingProvider extends ChangeNotifier {
     this._repository,
     this._notificationService, {
     Clock? clock,
-  }) : _clock = clock ?? const SystemClock() {
-    _loadBookings();
-  }
+  }) : _clock = clock ?? const SystemClock();
 
   void attachUser({required String? userId, required bool isProvider}) {
     if (_userId == userId && _isProvider == isProvider) return;
     _userId = userId;
     _isProvider = isProvider;
-    _loadBookings();
+    if (userId != null && userId.isNotEmpty) {
+      unawaited(_loadBookings());
+      if (isProvider) {
+        unawaited(loadProviderDashboardSummary());
+      }
+    } else {
+      _all = [];
+      _dashboardSummary = null;
+    }
     scheduleMicrotask(notifyListeners);
   }
 
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  bool get isDashboardLoading => _isDashboardLoading;
+  ProviderDashboardSummary? get dashboardSummary => _dashboardSummary;
+  String? get dashboardError => _dashboardError;
 
   List<BookingModel> get bookings => _all
       .where((b) => b.customerId == null || b.customerId == _userId)
       .toList();
 
-  List<BookingModel> get providerBookings => _isProvider
-      ? _all
-      : (_userId == null
-          ? const []
-          : _all.where((b) => b.providerId == null || b.providerId == _userId).toList());
+  List<BookingModel> get providerBookings => _isProvider && _userId != null
+      ? _all.where((booking) => booking.providerId == _userId).toList()
+      : const [];
 
   List<BookingModel> get _scope => _isProvider ? providerBookings : bookings;
 
@@ -78,46 +87,73 @@ class BookingProvider extends ChangeNotifier {
   List<BookingModel> get completedBookings =>
       _scope.where((b) => b.status == BookingStatus.completed).toList()
         ..sort((a, b) => '${b.bookingDate} ${b.startTime}'
-            .compareTo('${a.bookingDate} ${a.startTime}'));
+            .compareTo('${a.bookingDate} ${b.startTime}'));
 
-  List<BookingModel> get cancelledBookings =>
-      _scope.where((b) => b.status == BookingStatus.cancelled).toList()
-        ..sort((a, b) => (b.cancelledAt ?? b.createdAt)
-            .compareTo(a.cancelledAt ?? a.createdAt));
-
-  double get providerEarnings => providerBookings
-      .where((b) => b.status == BookingStatus.completed)
-      .fold(0.0, (sum, b) => sum + b.servicePrice);
-
-  List<BookingModel> _applyLocalStatusOverrides(List<BookingModel> list) {
-    return list.map((b) {
-      if (_completedBookingIds.contains(b.id)) {
-        return b.copyWith(status: BookingStatus.completed);
-      }
-      if (_cancelledBookingIds.contains(b.id)) {
-        return b.copyWith(status: BookingStatus.cancelled);
-      }
-      if (_confirmedBookingIds.contains(b.id)) {
-        return b.copyWith(status: BookingStatus.confirmed);
-      }
-      return b;
-    }).toList();
-  }
+  List<BookingModel> get cancelledBookings => _scope
+      .where((b) =>
+          b.status == BookingStatus.cancelled ||
+          b.status == BookingStatus.rejected)
+      .toList()
+    ..sort((a, b) =>
+        (b.cancelledAt ?? b.createdAt).compareTo(a.cancelledAt ?? a.createdAt));
 
   Future<void> _loadBookings() async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
     try {
       final fetched = await _repository.getBookings(isProvider: _isProvider);
-      _all = _applyLocalStatusOverrides(fetched);
-    } catch (_) {
-      try {
-        final fetched = await _repository.getBookings();
-        _all = _applyLocalStatusOverrides(fetched);
-      } catch (_) {}
+      _all = fetched;
+    } catch (error) {
+      _errorMessage = error.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> loadBookings() => _loadBookings();
+
+  Future<void> loadProviderDashboardSummary() async {
+    if (!_isProvider || _userId == null) return;
+    _isDashboardLoading = true;
+    _dashboardError = null;
+    notifyListeners();
+    try {
+      _dashboardSummary = await _repository.getProviderDashboardSummary();
+    } catch (error) {
+      _dashboardError = error.toString();
+    } finally {
+      _isDashboardLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void handleRealtimeBooking(Map<String, dynamic> payload) {
+    final rawBooking = payload['booking'];
+    if (rawBooking is! Map) return;
+    final booking = BookingModel.fromJson(
+      rawBooking.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    if (booking.id.isEmpty) return;
+
+    if (_userId != null &&
+        booking.customerId != _userId &&
+        booking.providerId != _userId) {
+      return;
+    }
+
+    final index = _all.indexWhere((item) => item.id == booking.id);
+    final shouldRefreshDashboard =
+        _isProvider && (index == -1 || _all[index].status != booking.status);
+    if (index == -1) {
+      _all.insert(0, booking);
+    } else {
+      _all[index] = booking;
+    }
+    notifyListeners();
+    if (shouldRefreshDashboard) {
+      unawaited(loadProviderDashboardSummary());
     }
   }
 
@@ -187,7 +223,8 @@ class BookingProvider extends ChangeNotifier {
     final simulatedOthers = getSimulatedOtherBookings(dateStr);
     final activeBookingsOnDate = bookings.where((b) =>
         b.bookingDate == dateStr &&
-        (b.status == BookingStatus.upcoming || b.status == BookingStatus.confirmed) &&
+        (b.status == BookingStatus.upcoming ||
+            b.status == BookingStatus.confirmed) &&
         b.id != excludeBookingId);
 
     final providerBusy = service.providerId == null
@@ -196,7 +233,8 @@ class BookingProvider extends ChangeNotifier {
             .where((b) =>
                 b.providerId == service.providerId &&
                 b.bookingDate == dateStr &&
-                (b.status == BookingStatus.upcoming || b.status == BookingStatus.confirmed) &&
+                (b.status == BookingStatus.upcoming ||
+                    b.status == BookingStatus.confirmed) &&
                 b.id != excludeBookingId)
             .toList();
 
@@ -288,41 +326,32 @@ class BookingProvider extends ChangeNotifier {
       providerId: service.providerId,
     );
 
-    final created = await _repository.createBooking(newBooking) as dynamic;
+    final created = await _repository.createBooking(newBooking);
+    _upsertBooking(created);
     await _loadBookings();
-    await _notificationService.scheduleBookingReminder(created is BookingModel ? created : newBooking);
-
-    return created is BookingModel ? created : newBooking;
+    await _notificationService.scheduleBookingReminder(created);
+    return created;
   }
 
   Future<void> acceptBooking(String bookingId) async {
-    _confirmedBookingIds.add(bookingId);
-    _all = _applyLocalStatusOverrides(_all);
-    notifyListeners();
-    try {
-      await _repository.acceptBooking(bookingId);
-    } catch (_) {}
+    final booking = await _repository.acceptBooking(bookingId);
+    _upsertBooking(booking);
     await _loadBookings();
+    if (_isProvider) await loadProviderDashboardSummary();
   }
 
   Future<void> rejectBooking(String bookingId) async {
-    _cancelledBookingIds.add(bookingId);
-    _all = _applyLocalStatusOverrides(_all);
-    notifyListeners();
-    try {
-      await _repository.rejectBooking(bookingId);
-    } catch (_) {}
+    final booking = await _repository.rejectBooking(bookingId);
+    _upsertBooking(booking);
     await _loadBookings();
+    if (_isProvider) await loadProviderDashboardSummary();
   }
 
   Future<void> cancelBooking(String bookingId, {String? reason}) async {
-    _cancelledBookingIds.add(bookingId);
-    _all = _applyLocalStatusOverrides(_all);
-    notifyListeners();
-    try {
-      await _repository.updateStatus(bookingId, 'CANCELLED');
-    } catch (_) {}
+    final booking = await _repository.updateStatus(bookingId, 'CANCELLED');
+    _upsertBooking(booking);
     await _loadBookings();
+    if (_isProvider) await loadProviderDashboardSummary();
   }
 
   Future<void> rescheduleBooking({
@@ -334,8 +363,7 @@ class BookingProvider extends ChangeNotifier {
     if (index == -1) throw Exception('Booking not found');
 
     final current = _all[index];
-    final newEndTime =
-        calculateEndTime(newStartTime, current.durationMinutes);
+    final newEndTime = calculateEndTime(newStartTime, current.durationMinutes);
 
     final updated = current.copyWith(
       bookingDate: newDateStr,
@@ -356,13 +384,50 @@ class BookingProvider extends ChangeNotifier {
     await _loadBookings();
   }
 
+  bool isBookingInFlight(String bookingId) =>
+      _inFlightBookingIds.contains(bookingId);
+
   Future<void> completeBooking(String bookingId) async {
-    _completedBookingIds.add(bookingId);
-    _all = _applyLocalStatusOverrides(_all);
+    if (bookingId.isEmpty) return;
+    if (_inFlightBookingIds.contains(bookingId)) return;
+
+    final existingIndex = _all.indexWhere((b) => b.id == bookingId);
+    if (existingIndex != -1) {
+      final target = _all[existingIndex];
+      if (target.status != BookingStatus.confirmed) {
+        throw StateError(
+          'Only accepted or confirmed bookings can be marked as completed.',
+        );
+      }
+    }
+
+    _inFlightBookingIds.add(bookingId);
     notifyListeners();
+
     try {
-      await _repository.updateStatus(bookingId, 'COMPLETED');
-    } catch (_) {}
-    await _loadBookings();
+      final booking = await _repository.updateStatus(bookingId, 'COMPLETED');
+      _upsertBooking(booking);
+      await _loadBookings();
+      if (_isProvider) {
+        await loadProviderDashboardSummary();
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      rethrow;
+    } finally {
+      _inFlightBookingIds.remove(bookingId);
+      notifyListeners();
+    }
+  }
+
+  void _upsertBooking(BookingModel booking) {
+    if (booking.id.isEmpty) return;
+    final index = _all.indexWhere((item) => item.id == booking.id);
+    if (index == -1) {
+      _all.insert(0, booking);
+    } else {
+      _all[index] = booking;
+    }
+    notifyListeners();
   }
 }

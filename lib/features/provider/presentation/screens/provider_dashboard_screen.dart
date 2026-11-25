@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:bookease/core/constants/app_categories.dart';
 import 'package:bookease/core/constants/app_colors.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
-import 'package:bookease/core/widgets/custom_button.dart';
 import 'package:bookease/core/widgets/header_circle_button.dart';
 import 'package:bookease/core/widgets/ui_kit.dart';
 import 'package:bookease/core/widgets/user_avatar.dart';
@@ -40,7 +39,7 @@ class ProviderDashboardScreen extends StatelessWidget {
     final notificationProvider = context.watch<NotificationProvider>();
 
     final upcoming = bookings.upcomingBookings;
-    final completed = bookings.completedBookings;
+    final dashboard = bookings.dashboardSummary;
     final muted = theme.colorScheme.onSurface.withAlpha(150);
 
     final category = user.businessCategory == null
@@ -173,7 +172,9 @@ class ProviderDashboardScreen extends StatelessWidget {
                                     ?.copyWith(color: Colors.white70),
                               ),
                               Text(
-                                'Rs ${bookings.providerEarnings.toStringAsFixed(0)}',
+                                dashboard == null
+                                    ? '—'
+                                    : 'Rs ${dashboard.totalEarnings.toStringAsFixed(0)}',
                                 style: theme.textTheme.headlineMedium?.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -209,7 +210,9 @@ class ProviderDashboardScreen extends StatelessWidget {
                       index: 2,
                       child: StatCard(
                         icon: Icons.pending_actions_rounded,
-                        value: '${upcoming.length}',
+                        value: dashboard == null
+                            ? '—'
+                            : '${dashboard.pendingBookingsCount}',
                         label: 'Upcoming',
                         color: AppColors.warning,
                       ),
@@ -225,7 +228,9 @@ class ProviderDashboardScreen extends StatelessWidget {
                       index: 3,
                       child: StatCard(
                         icon: Icons.check_circle_rounded,
-                        value: '${completed.length}',
+                        value: dashboard == null
+                            ? '—'
+                            : '${dashboard.completedBookingsCount}',
                         label: 'Completed',
                         color: AppColors.success,
                       ),
@@ -246,29 +251,6 @@ class ProviderDashboardScreen extends StatelessWidget {
                 ],
               ),
               SizedBox(height: AppSizes.s20),
-
-              // Quick actions
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomButton(
-                      label: 'Add service',
-                      icon: Icons.add_rounded,
-                      onPressed: () => onOpenTab(1),
-                    ),
-                  ),
-                  SizedBox(width: AppSizes.s12),
-                  Expanded(
-                    child: CustomButton(
-                      label: 'Requests',
-                      icon: Icons.inbox_rounded,
-                      isOutlined: true,
-                      onPressed: () => onOpenTab(2),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: AppSizes.s24),
 
               // Upcoming
               Row(
@@ -324,8 +306,8 @@ class ProviderDashboardScreen extends StatelessWidget {
                           services.services.isEmpty
                               ? 'Add your first service so customers can start booking you.'
                               : 'No upcoming bookings yet. They will appear here as soon as a customer books one of your services.',
-                          style:
-                          theme.textTheme.bodyMedium?.copyWith(color: muted),
+                          style: theme.textTheme.bodyMedium
+                              ?.copyWith(color: muted),
                         ),
                       ),
                     ],
@@ -348,11 +330,11 @@ class _Circle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: Colors.white.withAlpha(alpha),
-    ),
-  );
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withAlpha(alpha),
+        ),
+      );
 }

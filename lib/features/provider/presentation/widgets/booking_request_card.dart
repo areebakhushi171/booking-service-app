@@ -5,14 +5,15 @@ import 'package:provider/provider.dart';
 
 import 'package:bookease/core/constants/app_colors.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
-import 'package:bookease/core/widgets/circle_action_button.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:bookease/features/provider/data/service_image_presets.dart';
 import 'package:bookease/core/widgets/ui_kit.dart';
 import 'package:bookease/features/customer/bookings/data/models/booking_model.dart';
 import 'package:bookease/features/customer/bookings/providers/booking_provider.dart';
 import 'package:bookease/features/customer/bookings/presentation/screens/booking_detail_screen.dart';
 
-/// One incoming booking on the provider side, with circular Accept / Reject
-/// actions while the booking is still upcoming/pending.
+/// One incoming booking on the provider side with service imagery and
+/// explicit Accept / Reject actions while pending.
 class BookingRequestCard extends StatelessWidget {
   final BookingModel booking;
 
@@ -45,6 +46,8 @@ class BookingRequestCard extends StatelessWidget {
         return AppColors.success;
       case BookingStatus.cancelled:
         return AppColors.error;
+      case BookingStatus.rejected:
+        return AppColors.error;
     }
   }
 
@@ -58,6 +61,8 @@ class BookingRequestCard extends StatelessWidget {
         return 'Completed';
       case BookingStatus.cancelled:
         return 'Cancelled';
+      case BookingStatus.rejected:
+        return 'Rejected';
     }
   }
 
@@ -66,7 +71,8 @@ class BookingRequestCard extends StatelessWidget {
     final reason = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.r)),
         icon: CircleAvatar(
           radius: 28.r,
           backgroundColor: AppColors.error.withAlpha(30),
@@ -107,6 +113,33 @@ class BookingRequestCard extends StatelessWidget {
     }
   }
 
+  Future<void> _accept(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Accept this booking?'),
+        content: const Text('The customer will see this booking as accepted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await context.read<BookingProvider>().acceptBooking(booking.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Booking accepted successfully!')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -124,7 +157,8 @@ class BookingRequestCard extends StatelessWidget {
       child: InkWell(
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => BookingDetailScreen(booking: booking)),
+          MaterialPageRoute(
+              builder: (_) => BookingDetailScreen(booking: booking)),
         ),
         child: Padding(
           padding: EdgeInsets.all(AppSizes.s16),
@@ -132,18 +166,50 @@ class BookingRequestCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      booking.serviceName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14.r),
+                    child: CachedNetworkImage(
+                      imageUrl: booking.serviceImageUrl.trim().isNotEmpty
+                          ? booking.serviceImageUrl.trim()
+                          : ServiceImagePresets.forCategory(
+                              booking.serviceCategory),
+                      width: 68.r,
+                      height: 68.r,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        width: 68.r,
+                        height: 68.r,
+                        color: theme.colorScheme.onSurface.withAlpha(12),
+                        child: const Icon(Icons.image_outlined),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: 68.r,
+                        height: 68.r,
+                        color: theme.colorScheme.onSurface.withAlpha(12),
+                        child: const Icon(Icons.image_not_supported_outlined),
+                      ),
                     ),
                   ),
-                  SizedBox(width: AppSizes.s8),
-                  StatusPill(label: _statusLabel, color: _statusColor(theme)),
+                  SizedBox(width: AppSizes.s12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          booking.serviceName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        SizedBox(height: 6.h),
+                        StatusPill(
+                            label: _statusLabel, color: _statusColor(theme)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
               SizedBox(height: AppSizes.s12),
@@ -151,22 +217,55 @@ class BookingRequestCard extends StatelessWidget {
                 icon: Icons.event_rounded,
                 label: 'When',
                 value:
-                '${formatDate(booking.bookingDate)}  |  ${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}',
+                    '${formatDate(booking.bookingDate)}  |  ${formatTime(booking.startTime)} - ${formatTime(booking.endTime)}',
               ),
-              SizedBox(height: 10.h),
-              InfoRow(
-                icon: Icons.person_rounded,
-                label: 'Customer',
-                value: booking.customerName,
-                color: theme.colorScheme.secondary,
-              ),
-              SizedBox(height: 10.h),
-              InfoRow(
-                icon: Icons.phone_rounded,
-                label: 'Phone',
-                value: booking.customerPhone,
-                selectable: true,
-                color: AppColors.accentTeal,
+              SizedBox(height: 8.h),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 22.r,
+                    backgroundColor: theme.colorScheme.secondary.withAlpha(18),
+                    child: Icon(
+                      Icons.person_rounded,
+                      color: theme.colorScheme.secondary,
+                      size: 21.sp,
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Customer',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: muted,
+                                ),
+                              ),
+                              SizedBox(height: 3.h),
+                              Text(
+                                booking.customerName.trim().isNotEmpty
+                                    ? booking.customerName
+                                    : 'Not provided',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               if ((booking.customerNotes ?? '').trim().isNotEmpty) ...[
                 SizedBox(height: 10.h),
@@ -198,7 +297,7 @@ class BookingRequestCard extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    'Rs ${booking.servicePrice.toStringAsFixed(0)}',
+                    booking.formattedServicePrice,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.primary,
@@ -206,30 +305,40 @@ class BookingRequestCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   if (isUpcoming) ...[
-                    CircleActionButton(
-                      icon: Icons.close_rounded,
-                      tooltip: 'Reject booking',
-                      label: 'Reject',
-                      color: AppColors.error,
+                    OutlinedButton.icon(
                       onPressed: () => _decline(context),
+                      icon: Icon(Icons.close_rounded, size: 18.sp),
+                      label: const Text('Reject'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        backgroundColor: AppColors.error.withAlpha(14),
+                        side: BorderSide(color: AppColors.error.withAlpha(55)),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 16.w, vertical: 13.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                        ),
+                        textStyle: TextStyle(
+                            fontSize: 14.sp, fontWeight: FontWeight.w600),
+                      ),
                     ),
-                    SizedBox(width: 18.w),
-                    CircleActionButton(
-                      icon: Icons.check_rounded,
-                      tooltip: 'Accept booking',
-                      label: 'Accept',
-                      color: AppColors.success,
-                      onPressed: () async {
-                        await context
-                            .read<BookingProvider>()
-                            .acceptBooking(booking.id);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Booking accepted successfully!')),
-                          );
-                        }
-                      },
+                    SizedBox(width: 10.w),
+                    FilledButton.icon(
+                      onPressed: () => _accept(context),
+                      icon: Icon(Icons.check_rounded, size: 18.sp),
+                      label: const Text('Accept'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.success.withAlpha(22),
+                        foregroundColor: AppColors.success,
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 16.w, vertical: 13.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                        ),
+                        textStyle: TextStyle(
+                            fontSize: 14.sp, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ],
