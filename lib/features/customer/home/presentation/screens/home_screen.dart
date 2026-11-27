@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:bookease/core/constants/app_categories.dart';
+import 'package:bookease/core/constants/app_colors.dart';
 import 'package:bookease/core/constants/app_sizes.dart';
 import 'package:bookease/core/widgets/category_chip.dart';
 import 'package:bookease/core/widgets/empty_state_view.dart';
@@ -38,7 +39,7 @@ class HomeScreen extends StatelessWidget {
     final favoritesProvider = context.watch<FavoritesProvider>();
     final notificationProvider = context.watch<NotificationProvider>();
 
-    final isFiltering = serviceProvider.selectedCategory != null ||
+    final isFiltering = serviceProvider.hasActiveFilters ||
         serviceProvider.searchQuery.isNotEmpty;
 
     return Scaffold(
@@ -191,7 +192,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
 
-              // Search + sort
+              // Search + Filter Button
               SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
@@ -217,18 +218,41 @@ class HomeScreen extends StatelessWidget {
                       ),
                       SizedBox(width: 10.w),
                       Tooltip(
-                        message: 'Sort',
+                        message: 'Filter & Sort',
                         child: Material(
-                          color: theme.colorScheme.primary,
+                          color: serviceProvider.hasActiveFilters
+                              ? AppColors.primary
+                              : theme.colorScheme.primary,
                           shape: const CircleBorder(),
-                          child: InkResponse(
+                          child: InkWell(
                             customBorder: const CircleBorder(),
-                            onTap: () => _showSortBottomSheet(context),
+                            onTap: () => _showFilterBottomSheet(context),
                             child: SizedBox(
                               width: 50.r,
                               height: 50.r,
-                              child: Icon(Icons.tune_rounded,
-                                  color: theme.colorScheme.onPrimary),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.tune_rounded,
+                                    color: theme.colorScheme.onPrimary,
+                                    size: 22.sp,
+                                  ),
+                                  if (serviceProvider.hasActiveFilters)
+                                    Positioned(
+                                      top: 10.r,
+                                      right: 10.r,
+                                      child: Container(
+                                        width: 10.r,
+                                        height: 10.r,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.amberAccent,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -312,18 +336,17 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.search_off_rounded,
                       title: 'No Services Found',
                       message:
-                      'No matches for your current filter or search criteria. Try a different category or search keyword.',
+                      'No matches for your current filter or search criteria. Try a different category or price/duration range.',
                       buttonText: 'Clear Filters',
                       onButtonPressed: () {
-                        serviceProvider.selectCategory(null);
-                        serviceProvider.setSearchQuery('');
+                        serviceProvider.resetFilters();
                       },
                     ),
                   )
                 else if (isFiltering) ...[
-                    _sectionTitle(context, 'Results',
+                    _sectionTitle(context, 'Filtered Services',
                         trailing: '${serviceProvider.filteredServices.length} found'),
-                    _grid(context, serviceProvider.filteredServices, 'search'),
+                    _grid(context, serviceProvider.filteredServices, 'filter'),
                     SliverToBoxAdapter(child: SizedBox(height: 32.h)),
                   ] else ...[
                     if (serviceProvider.popularServices.isNotEmpty) ...[
@@ -439,97 +462,265 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _showSortBottomSheet(BuildContext context) {
-    final provider = context.read<ServiceProvider>();
+  void _showFilterBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28.r)),
       ),
-      builder: (ctx) {
-        Widget tile(String title, IconData icon, ServiceSort sort) {
-          return _buildSortTile(
-            ctx,
-            title: title,
-            icon: icon,
-            selected: provider.currentSort == sort,
-            onTap: () {
-              provider.setSort(sort);
-              Navigator.pop(ctx);
-            },
-          );
-        }
+      builder: (ctx) => const _FilterBottomSheet(),
+    );
+  }
+}
 
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: AppSizes.s20, vertical: AppSizes.s12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40.w,
-                    height: 4.h,
-                    decoration: BoxDecoration(
-                      color: Theme.of(ctx).colorScheme.onSurface.withAlpha(50),
-                      borderRadius: BorderRadius.circular(4.r),
+class _FilterBottomSheet extends StatefulWidget {
+  const _FilterBottomSheet();
+
+  @override
+  State<_FilterBottomSheet> createState() => _FilterBottomSheetState();
+}
+
+class _FilterBottomSheetState extends State<_FilterBottomSheet> {
+  late ServiceSort _sort;
+  late String? _category;
+  late double? _minPrice;
+  late double? _maxPrice;
+  late int? _maxDuration;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = context.read<ServiceProvider>();
+    _sort = p.currentSort;
+    _category = p.selectedCategory;
+    _minPrice = p.minPrice;
+    _maxPrice = p.maxPrice;
+    _maxDuration = p.maxDurationMinutes;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final p = context.read<ServiceProvider>();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSizes.s20,
+          AppSizes.s12,
+          AppSizes.s20,
+          MediaQuery.of(context).viewInsets.bottom + AppSizes.s16,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withAlpha(50),
+                    borderRadius: BorderRadius.circular(4.r),
+                  ),
+                ),
+              ),
+              SizedBox(height: AppSizes.s12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Filter & Arrange Services',
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _sort = ServiceSort.priceAsc;
+                        _category = null;
+                        _minPrice = null;
+                        _maxPrice = null;
+                        _maxDuration = null;
+                      });
+                      p.resetFilters();
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Reset All'),
+                  ),
+                ],
+              ),
+              SizedBox(height: AppSizes.s16),
+
+              // Sort Section
+              Text(
+                'Sort By',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8.h),
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 8.h,
+                children: [
+                  _sortChip('Price: Low to High', ServiceSort.priceAsc),
+                  _sortChip('Price: High to Low', ServiceSort.priceDesc),
+                  _sortChip('Duration: Shortest', ServiceSort.durationAsc),
+                  _sortChip('Name: A to Z', ServiceSort.nameAsc),
+                ],
+              ),
+              SizedBox(height: AppSizes.s20),
+
+              // Category Section
+              Text(
+                'Category',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8.h),
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 8.h,
+                children: [
+                  FilterChip(
+                    label: const Text('All Categories'),
+                    selected: _category == null,
+                    onSelected: (_) => setState(() => _category = null),
+                  ),
+                  ...AppCategories.all.map((c) {
+                    final id = c['id'] as String;
+                    final name = c['name'] as String;
+                    return FilterChip(
+                      label: Text(name),
+                      selected: _category == id,
+                      onSelected: (selected) {
+                        setState(() {
+                          _category = selected ? id : null;
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
+              SizedBox(height: AppSizes.s20),
+
+              // Price Filter Section
+              Text(
+                'Price Range (Rs)',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8.h),
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 8.h,
+                children: [
+                  _priceChip('Any Price', null, null),
+                  _priceChip('Under Rs 1,500', null, 1500),
+                  _priceChip('Rs 1,500 - Rs 3,500', 1500, 3500),
+                  _priceChip('Above Rs 3,500', 3500, null),
+                ],
+              ),
+              SizedBox(height: AppSizes.s20),
+
+              // Duration Section
+              Text(
+                'Max Duration',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8.h),
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 8.h,
+                children: [
+                  _durationChip('Any Duration', null),
+                  _durationChip('Under 30 mins', 30),
+                  _durationChip('Under 60 mins', 60),
+                  _durationChip('Under 120 mins', 120),
+                ],
+              ),
+              SizedBox(height: AppSizes.s24),
+
+              // Apply Button
+              SizedBox(
+                width: double.infinity,
+                height: 52.h,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16.r),
+                    ),
+                  ),
+                  onPressed: () {
+                    p.applyFilterSheet(
+                      category: _category,
+                      sort: _sort,
+                      minPrice: _minPrice,
+                      maxPrice: _maxPrice,
+                      maxDuration: _maxDuration,
+                    );
+                    Navigator.pop(context);
+                  },
+                  child: Text(
+                    'Apply Filters',
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                 ),
-                SizedBox(height: AppSizes.s16),
-                Text(
-                  'Sort Services By',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: AppSizes.s12),
-                tile('Price: Low to High', Icons.arrow_upward_rounded,
-                    ServiceSort.priceAsc),
-                tile('Price: High to Low', Icons.arrow_downward_rounded,
-                    ServiceSort.priceDesc),
-                tile('Duration: Shortest First', Icons.schedule_rounded,
-                    ServiceSort.durationAsc),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
+        ),
+      ),
+    );
+  }
+
+  Widget _sortChip(String label, ServiceSort sortVal) {
+    final selected = _sort == sortVal;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (val) {
+        if (val) setState(() => _sort = sortVal);
       },
     );
   }
 
-  Widget _buildSortTile(
-      BuildContext context, {
-        required String title,
-        required IconData icon,
-        required bool selected,
-        required VoidCallback onTap,
-      }) {
-    final theme = Theme.of(context);
-    final c = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurface.withAlpha(160);
-    return ListTile(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      leading: CircleAvatar(
-        radius: 18.r,
-        backgroundColor: c.withAlpha(28),
-        child: Icon(icon, color: c, size: 18.sp),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-          color: selected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
-        ),
-      ),
-      trailing: selected
-          ? Icon(Icons.check_circle_rounded, color: theme.colorScheme.primary)
-          : null,
-      onTap: onTap,
+  Widget _priceChip(String label, double? minP, double? maxP) {
+    final selected = _minPrice == minP && _maxPrice == maxP;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (val) {
+        if (val) {
+          setState(() {
+            _minPrice = minP;
+            _maxPrice = maxP;
+          });
+        }
+      },
+    );
+  }
+
+  Widget _durationChip(String label, int? maxD) {
+    final selected = _maxDuration == maxD;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (val) {
+        if (val) {
+          setState(() {
+            _maxDuration = maxD;
+          });
+        }
+      },
     );
   }
 }

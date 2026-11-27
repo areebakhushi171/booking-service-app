@@ -13,6 +13,9 @@ import 'package:bookease/core/storage/token_storage.dart';
 class ApiClient {
   late final Dio _dio;
   final TokenStorage _tokens;
+  static const bool _uploadDebugEnabled = bool.fromEnvironment('UPLOAD_DEBUG');
+
+  bool get _shouldLogUploads => kDebugMode || _uploadDebugEnabled;
 
   /// Called when the API answers 401 (e.g. to force logout).
   void Function()? onUnauthorized;
@@ -68,7 +71,8 @@ class ApiClient {
         },
         onResponse: (response, handler) {
           if (kDebugMode) {
-            debugPrint('📥 [API RES] ${response.requestOptions.method} ${response.requestOptions.uri}');
+            debugPrint(
+                '📥 [API RES] ${response.requestOptions.method} ${response.requestOptions.uri}');
             debugPrint('🔢 [STATUS] ${response.statusCode}');
             if (response.data != null) {
               debugPrint('📄 [RES BODY] ${_sanitizeData(response.data)}');
@@ -78,7 +82,8 @@ class ApiClient {
         },
         onError: (DioException err, handler) {
           if (kDebugMode) {
-            debugPrint('❌ [API ERROR] ${err.requestOptions.method} ${err.requestOptions.uri} - ${err.type}: ${err.message}');
+            debugPrint(
+                '❌ [API ERROR] ${err.requestOptions.method} ${err.requestOptions.uri} - ${err.type}: ${err.message}');
             if (err.response?.data != null) {
               debugPrint('📄 [ERROR RES] ${_sanitizeData(err.response?.data)}');
             }
@@ -92,7 +97,14 @@ class ApiClient {
   dynamic _sanitizeData(dynamic data) {
     if (data is Map) {
       final sanitized = Map<String, dynamic>.from(data);
-      for (final key in ['password', 'currentPassword', 'newPassword', 'token', 'accessToken', 'authorization']) {
+      for (final key in [
+        'password',
+        'currentPassword',
+        'newPassword',
+        'token',
+        'accessToken',
+        'authorization'
+      ]) {
         if (sanitized.containsKey(key)) {
           sanitized[key] = '***REDACTED***';
         }
@@ -115,7 +127,8 @@ class ApiClient {
     CancelToken? cancelToken,
     Options? options,
   }) =>
-      _request('GET', path, queryParameters: query, cancelToken: cancelToken, options: options);
+      _request('GET', path,
+          queryParameters: query, cancelToken: cancelToken, options: options);
 
   Future<ApiResponse> post(
     String path, {
@@ -123,8 +136,14 @@ class ApiClient {
     Map<String, dynamic>? query,
     CancelToken? cancelToken,
     Options? options,
+    ProgressCallback? onSendProgress,
   }) =>
-      _request('POST', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+      _request('POST', path,
+          body: body,
+          queryParameters: query,
+          cancelToken: cancelToken,
+          options: options,
+          onSendProgress: onSendProgress);
 
   Future<ApiResponse> put(
     String path, {
@@ -133,7 +152,11 @@ class ApiClient {
     CancelToken? cancelToken,
     Options? options,
   }) =>
-      _request('PUT', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+      _request('PUT', path,
+          body: body,
+          queryParameters: query,
+          cancelToken: cancelToken,
+          options: options);
 
   Future<ApiResponse> patch(
     String path, {
@@ -141,8 +164,14 @@ class ApiClient {
     Map<String, dynamic>? query,
     CancelToken? cancelToken,
     Options? options,
+    ProgressCallback? onSendProgress,
   }) =>
-      _request('PATCH', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+      _request('PATCH', path,
+          body: body,
+          queryParameters: query,
+          cancelToken: cancelToken,
+          options: options,
+          onSendProgress: onSendProgress);
 
   Future<ApiResponse> delete(
     String path, {
@@ -151,7 +180,11 @@ class ApiClient {
     CancelToken? cancelToken,
     Options? options,
   }) =>
-      _request('DELETE', path, body: body, queryParameters: query, cancelToken: cancelToken, options: options);
+      _request('DELETE', path,
+          body: body,
+          queryParameters: query,
+          cancelToken: cancelToken,
+          options: options);
 
   /// Upload a single file via multipart/form-data.
   Future<ApiResponse> uploadFile(
@@ -219,20 +252,78 @@ class ApiClient {
     Options? options,
     ProgressCallback? onSendProgress,
   }) async {
+    final formData = body is FormData ? body : null;
+    final uploadTimer = formData == null ? null : (Stopwatch()..start());
+    final fileSizes =
+        formData?.files.map((entry) => entry.value.length).toList();
+    final uploadRoute = path.endsWith('/avatar')
+        ? 'avatar'
+        : path.contains('/properties')
+            ? 'service'
+            : 'multipart';
+    var lastLoggedProgress = -10;
+    var lastSentBytes = 0;
+    if (formData != null && _shouldLogUploads) {
+      debugPrint(
+        '[UPLOAD] started method=$method route=$uploadRoute '
+        'fileCount=${fileSizes!.length} fileSizesBytes=$fileSizes '
+        'totalFileBytes=${fileSizes.fold<int>(0, (sum, size) => sum + size)}',
+      );
+    }
+
     try {
       final response = await _dio.request<dynamic>(
         path,
         data: body,
         queryParameters: queryParameters,
         cancelToken: cancelToken,
-        onSendProgress: onSendProgress,
+        onSendProgress: formData == null
+            ? onSendProgress
+            : (sent, total) {
+                lastSentBytes = sent;
+                if (_shouldLogUploads && total > 0) {
+                  final percent = (sent * 100 ~/ total).clamp(0, 100);
+                  if (percent >= lastLoggedProgress + 10 || percent == 100) {
+                    lastLoggedProgress = percent;
+                    debugPrint(
+                      '[UPLOAD] progress method=$method route=$uploadRoute '
+                      'sentBytes=$sent totalBytes=$total percent=$percent',
+                    );
+                  }
+                }
+                onSendProgress?.call(sent, total);
+              },
         options: (options ?? Options()).copyWith(method: method),
       );
 
+      if (formData != null && _shouldLogUploads) {
+        debugPrint(
+          '[UPLOAD] completed method=$method route=$uploadRoute '
+          'status=${response.statusCode} elapsedMs=${uploadTimer!.elapsedMilliseconds}',
+        );
+      }
       return ApiResponse(response.statusCode ?? 200, response.data);
     } on DioException catch (e) {
+      if (formData != null && _shouldLogUploads) {
+        final failureKind = e.type == DioExceptionType.cancel
+            ? 'cancelled'
+            : e.type == DioExceptionType.connectionError
+                ? 'connection-lost'
+                : e.type.name;
+        debugPrint(
+          '[UPLOAD] failed method=$method route=$uploadRoute kind=$failureKind '
+          'elapsedMs=${uploadTimer!.elapsedMilliseconds} '
+          'sentBytes=$lastSentBytes',
+        );
+      }
       throw _handleDioError(e);
     } catch (e) {
+      if (formData != null && _shouldLogUploads) {
+        debugPrint(
+          '[UPLOAD] failed method=$method route=$uploadRoute kind=client-error '
+          'elapsedMs=${uploadTimer!.elapsedMilliseconds}',
+        );
+      }
       if (e is NetworkException) rethrow;
       throw ServerException(e.toString());
     }
@@ -264,15 +355,18 @@ class ApiClient {
 
     if (code == 401) {
       onUnauthorized?.call();
-      return UnauthorizedException(message ?? 'Your session has expired. Please log in again.');
+      return UnauthorizedException(
+          message ?? 'Your session has expired. Please log in again.');
     }
 
     if (code >= 500) {
       return ServerException(
-          message ?? 'Something went wrong on our side. Please try again later.', code);
+          message ??
+              'Something went wrong on our side. Please try again later.',
+          code);
     }
 
-    return BadRequestException(message ?? 'Request failed ($code).', statusCode: code);
+    return BadRequestException(message ?? 'Request failed ($code).',
+        statusCode: code);
   }
 }
-

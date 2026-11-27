@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bookease/core/services/socket_service.dart';
+import 'package:bookease/core/storage/token_storage.dart';
 import 'package:bookease/features/chat/data/models/chat_model.dart';
 import 'package:bookease/features/chat/data/repositories/chat_repository.dart';
 import 'package:bookease/features/chat/providers/chat_provider.dart';
@@ -11,8 +13,13 @@ import 'package:bookease/features/notifications/data/repositories/notification_r
 import 'package:bookease/features/notifications/providers/notification_provider.dart';
 
 class _ChatRepository implements ChatRepository {
+  final List<ConversationModel> conversations;
+  final List<String> fetchedConversationIds = [];
+
+  _ChatRepository({this.conversations = const []});
+
   @override
-  Future<List<ConversationModel>> fetchConversations() async => [];
+  Future<List<ConversationModel>> fetchConversations() async => conversations;
 
   @override
   Future<ConversationModel> createConversation({
@@ -22,7 +29,10 @@ class _ChatRepository implements ChatRepository {
       throw UnimplementedError();
 
   @override
-  Future<List<MessageModel>> fetchMessages(String conversationId) async => [];
+  Future<List<MessageModel>> fetchMessages(String conversationId) async {
+    fetchedConversationIds.add(conversationId);
+    return [];
+  }
 
   @override
   Future<MessageModel> sendMessage(
@@ -33,6 +43,34 @@ class _ChatRepository implements ChatRepository {
 
   @override
   Future<void> markConversationRead(String conversationId) async {}
+}
+
+class _FakeTokenStorage implements TokenStorage {
+  @override
+  String? readToken() => null;
+
+  @override
+  Future<void> saveToken(String token) async {}
+
+  @override
+  Future<void> clear() async {}
+}
+
+class _FakeSocketService extends SocketService {
+  _FakeSocketService() : super(_FakeTokenStorage());
+
+  bool connected = false;
+  bool joinResult = false;
+  final List<String> joinAttempts = [];
+
+  @override
+  bool get isConnected => connected;
+
+  @override
+  Future<bool> joinConversation(String conversationId) async {
+    joinAttempts.add(conversationId);
+    return joinResult;
+  }
 }
 
 class _BookingRepository implements BookingRepository {
@@ -119,8 +157,18 @@ void main() {
   });
 
   test('message events upsert by ID and apply read receipts', () async {
-    final provider = ChatProvider(_ChatRepository());
+    const conversation = ConversationModel(
+      id: 'conversation-1',
+      propertyId: 'service-1',
+      propertyName: 'Service',
+      participantId: 'provider-1',
+      participantName: 'Provider',
+    );
+    final provider =
+        ChatProvider(_ChatRepository(conversations: const [conversation]));
     await Future<void>.delayed(Duration.zero);
+    var providerUpdates = 0;
+    provider.addListener(() => providerUpdates++);
 
     final message = {
       'id': 'message-1',
@@ -142,6 +190,7 @@ void main() {
 
     expect(provider.messagesFor('conversation-1'), hasLength(1));
     expect(provider.unreadCount, 1);
+    expect(providerUpdates, 1);
     expect(provider.messagesFor('conversation-1').single.isRead, isFalse);
 
     provider.handleMessageRead({
@@ -152,7 +201,36 @@ void main() {
     });
 
     expect(provider.messagesFor('conversation-1').single.isRead, isTrue);
+    expect(providerUpdates, 2);
     await Future<void>.delayed(Duration.zero);
+    provider.dispose();
+  });
+
+  test('active conversation remains queued after join failure and retries',
+      () async {
+    const conversation = ConversationModel(
+      id: 'conversation-active',
+      propertyId: 'service-1',
+      propertyName: 'Service',
+      participantId: 'provider-1',
+      participantName: 'Provider',
+    );
+    final repository = _ChatRepository(conversations: const [conversation]);
+    final socket = _FakeSocketService();
+    final provider = ChatProvider(repository, socket);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await provider.joinConversation(conversation.id), isTrue);
+    socket.connected = true;
+    socket.joinResult = false;
+    await provider.handleSocketConnected();
+    expect(socket.joinAttempts, [conversation.id]);
+
+    socket.joinResult = true;
+    await provider.handleSocketConnected();
+    expect(socket.joinAttempts, [conversation.id, conversation.id]);
+    expect(
+        repository.fetchedConversationIds, [conversation.id, conversation.id]);
     provider.dispose();
   });
 

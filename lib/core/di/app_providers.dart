@@ -71,18 +71,39 @@ Future<List<SingleChildWidget>> buildAppProviders() async {
   final favoritesProvider = FavoritesProvider(favoritesRepository);
   final authProvider = AuthProvider(authRepository, socketService);
 
-  socketService.onConnected = () {
-    unawaited(chatProvider.handleSocketConnected());
-    unawaited(bookingProvider.loadBookings());
-    unawaited(notificationProvider.loadNotifications());
-    unawaited(serviceProvider.loadServices());
-    unawaited(favoritesProvider.loadFavorites());
-    final user = authProvider.currentUser;
-    if (user?.isProvider == true) {
-      unawaited(providerServicesProvider.load(user!.id));
-      unawaited(bookingProvider.loadProviderDashboardSummary());
-    }
-  };
+  var recoveryRunning = false;
+  var recoveryRequested = false;
+  void recoverAfterSocketConnect() {
+    recoveryRequested = true;
+    if (recoveryRunning) return;
+
+    recoveryRunning = true;
+    unawaited(() async {
+      try {
+        while (recoveryRequested) {
+          recoveryRequested = false;
+          final tasks = <Future<void>>[
+            chatProvider.handleSocketConnected(),
+            bookingProvider.loadBookings(),
+            notificationProvider.loadNotifications(),
+            serviceProvider.loadServices(),
+            favoritesProvider.loadFavorites(),
+          ];
+          final user = authProvider.currentUser;
+          if (user?.isProvider == true) {
+            tasks
+              ..add(providerServicesProvider.load(user!.id))
+              ..add(bookingProvider.loadProviderDashboardSummary());
+          }
+          await Future.wait(tasks);
+        }
+      } finally {
+        recoveryRunning = false;
+      }
+    }());
+  }
+
+  socketService.onConnected = recoverAfterSocketConnect;
   socketService.onDisconnected = chatProvider.handleSocketDisconnected;
   socketService.onMessageNew = chatProvider.handleMessageNew;
   socketService.onMessageRead = chatProvider.handleMessageRead;

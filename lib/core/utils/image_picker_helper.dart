@@ -19,9 +19,6 @@ class ImagePickerHelper {
     'jpeg',
     'png',
     'webp',
-    'heic',
-    'heif',
-    'gif',
   };
 
   /// Pick a single image from [source] (camera or gallery).
@@ -52,7 +49,8 @@ class ImagePickerHelper {
     try {
       final remainingSlots = maxGalleryImages - currentCount;
       if (remainingSlots <= 0) {
-        throw Exception('You can add a maximum of $maxGalleryImages gallery images.');
+        throw Exception(
+            'You can add a maximum of $maxGalleryImages gallery images.');
       }
 
       final List<XFile> files = await _picker.pickMultiImage(
@@ -88,7 +86,7 @@ class ImagePickerHelper {
 
     final ext = file.path.split('.').last.toLowerCase();
     if (!allowedExtensions.contains(ext)) {
-      return 'Invalid image format ($ext). Allowed formats: JPG, PNG, WEBP, HEIC.';
+      return 'Unsupported image format ($ext). Use JPG, PNG, or WEBP.';
     }
 
     final size = file.lengthSync();
@@ -122,8 +120,8 @@ class ImagePickerHelper {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 SizedBox(height: 16.h),
                 ListTile(
@@ -139,7 +137,9 @@ class ImagePickerHelper {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                          SnackBar(
+                              content: Text(
+                                  e.toString().replaceAll('Exception: ', ''))),
                         );
                       }
                     }
@@ -158,7 +158,9 @@ class ImagePickerHelper {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                          SnackBar(
+                              content: Text(
+                                  e.toString().replaceAll('Exception: ', ''))),
                         );
                       }
                     }

@@ -31,7 +31,7 @@ class ServiceRepositoryImpl implements ServiceRepository {
     List<File>? galleryFiles,
     List<String>? existingGalleryUrls,
   }) async {
-    if (service.id.isEmpty || service.id.startsWith('SRV-')) {
+    if (service.id.isEmpty) {
       await _remoteSource.createServiceMultipart(
         service,
         mainImageFile,

@@ -47,6 +47,7 @@ class NotificationProvider extends ChangeNotifier {
   void handleNotificationNew(Map<String, dynamic> payload) {
     final notification = NotificationModel.fromJson(payload);
     if (notification.id.isEmpty) return;
+    if (_notifications.any((item) => item.id == notification.id)) return;
     _notifications.removeWhere((item) => item.id == notification.id);
     _notifications.insert(0, notification);
     _locallyReadIds.remove(notification.id);

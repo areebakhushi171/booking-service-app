@@ -104,30 +104,48 @@ class ChatProvider extends ChangeNotifier {
     final message = MessageModel.fromJson(
       rawMessage.map((key, value) => MapEntry(key.toString(), value)),
     );
-    _upsertMessage(message);
+    final existingMessages = _messagesByConversation[message.conversationId];
+    final isDuplicate =
+        existingMessages?.any((item) => item.id == message.id) ?? false;
+    if (!isDuplicate) _upsertMessage(message);
 
     final conversationId =
         (payload['conversationId'] ?? message.conversationId).toString();
     final index = _conversations
         .indexWhere((conversation) => conversation.id == conversationId);
+    var changed = !isDuplicate;
     if (index != -1) {
+      final previous = _conversations[index];
       final unreadCount =
           int.tryParse(payload['unreadCount']?.toString() ?? '');
-      _conversations[index] = _conversations[index].copyWith(
-        lastMessage: message.content,
-        updatedAt: message.createdAt,
-        unreadCount: unreadCount,
-      );
+      final nextUnreadCount = unreadCount ?? previous.unreadCount;
+      if (previous.lastMessage != message.content ||
+          previous.updatedAt != message.createdAt ||
+          previous.unreadCount != nextUnreadCount) {
+        _conversations[index] = previous.copyWith(
+          lastMessage: message.content,
+          updatedAt: message.createdAt,
+          unreadCount: unreadCount,
+        );
+        changed = true;
+      }
     }
     final globalCount =
         int.tryParse(payload['globalUnreadCount']?.toString() ?? '');
-    if (globalCount != null) {
+    if (globalCount != null && globalCount != _globalUnreadCount) {
       _globalUnreadCount = globalCount;
-    } else if (index != -1) {
-      _globalUnreadCount =
+      changed = true;
+    } else if (globalCount == null && index != -1) {
+      final calculatedCount =
           _conversations.fold(0, (sum, item) => sum + item.unreadCount);
+      if (calculatedCount != _globalUnreadCount) {
+        _globalUnreadCount = calculatedCount;
+        changed = true;
+      }
     }
-    notifyListeners();
+    if (changed) {
+      notifyListeners();
+    }
     if (index == -1) loadConversations();
 
     if (_activeConversationIds.contains(conversationId)) {
@@ -235,9 +253,7 @@ class ChatProvider extends ChangeNotifier {
     _activeConversationIds.add(conversationId);
     if (!service.isConnected) return true;
 
-    final joined = await service.joinConversation(conversationId);
-    if (!joined) _activeConversationIds.remove(conversationId);
-    return joined;
+    return service.joinConversation(conversationId);
   }
 
   Future<void> leaveConversation(String conversationId) async {
@@ -249,9 +265,14 @@ class ChatProvider extends ChangeNotifier {
   Future<void> handleSocketConnected() async {
     await loadConversations();
     for (final conversationId in _activeConversationIds.toList()) {
-      await _socketService?.joinConversation(conversationId);
-      await fetchMessages(conversationId);
-      await markRead(conversationId);
+      try {
+        await _socketService?.joinConversation(conversationId);
+        await fetchMessages(conversationId);
+        await markRead(conversationId);
+      } catch (error) {
+        _errorMessage = 'Unable to restore conversation: $error';
+        notifyListeners();
+      }
     }
   }
 

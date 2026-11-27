@@ -144,6 +144,9 @@ class BookingProvider extends ChangeNotifier {
     }
 
     final index = _all.indexWhere((item) => item.id == booking.id);
+    if (index != -1 && mapEquals(_all[index].toJson(), booking.toJson())) {
+      return;
+    }
     final shouldRefreshDashboard =
         _isProvider && (index == -1 || _all[index].status != booking.status);
     if (index == -1) {

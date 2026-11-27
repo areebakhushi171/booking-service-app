@@ -1,16 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 import 'package:bookease/core/network/network_config.dart';
 import 'package:bookease/core/storage/token_storage.dart';
 
 typedef SocketEventHandler = void Function(Map<String, dynamic> payload);
 
-class SocketService {
+class SocketService extends WidgetsBindingObserver {
   final TokenStorage _tokenStorage;
   socket_io.Socket? _socket;
   bool _isConnected = false;
+  bool _lifecycleObserverAttached = false;
   String? _userId;
 
   VoidCallback? onConnected;
@@ -93,6 +95,10 @@ class SocketService {
             .build(),
       );
       _socket = socket;
+      if (!_lifecycleObserverAttached) {
+        WidgetsBinding.instance.addObserver(this);
+        _lifecycleObserverAttached = true;
+      }
 
       socket.onConnect((_) {
         _isConnected = true;
@@ -182,12 +188,35 @@ class SocketService {
 
       socket.connect();
     } catch (error) {
+      _removeLifecycleObserver();
       _socket?.dispose();
       _socket = null;
       _isConnected = false;
       _userId = null;
       _log('initialization failed userId=$userId error=$error');
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+
+    final socket = _socket;
+    if (socket == null) return;
+    _log(
+        'app resumed userId=${_userId ?? "unknown"} connected=${socket.connected}');
+    if (socket.connected) {
+      _isConnected = true;
+      onConnected?.call();
+    } else {
+      socket.connect();
+    }
+  }
+
+  void _removeLifecycleObserver() {
+    if (!_lifecycleObserverAttached) return;
+    WidgetsBinding.instance.removeObserver(this);
+    _lifecycleObserverAttached = false;
   }
 
   Future<bool> joinConversation(String conversationId) =>
@@ -249,6 +278,7 @@ class SocketService {
 
   void disconnect() {
     final socket = _socket;
+    _removeLifecycleObserver();
     if (socket == null) return;
 
     socket.disconnect();

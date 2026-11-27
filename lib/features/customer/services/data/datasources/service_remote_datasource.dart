@@ -14,13 +14,19 @@ class ServiceRemoteDataSource {
   List<ServiceModel> _parseList(dynamic data) {
     final list = data is List
         ? data
-        : (data is Map ? (data['properties'] ?? data['data'] ?? data['services'] ?? []) as List : []);
-    return list.map((e) => ServiceModel.fromJson(e as Map<String, dynamic>)).toList();
+        : (data is Map
+            ? (data['properties'] ?? data['data'] ?? data['services'] ?? [])
+                as List
+            : []);
+    return list
+        .map((e) => ServiceModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   ServiceModel _parseSingle(dynamic data) {
     final json = data is Map
-        ? (data['property'] ?? data['service'] ?? data['data'] ?? data) as Map<String, dynamic>
+        ? (data['property'] ?? data['service'] ?? data['data'] ?? data)
+            as Map<String, dynamic>
         : data as Map<String, dynamic>;
     return ServiceModel.fromJson(json);
   }
@@ -46,13 +52,21 @@ class ServiceRemoteDataSource {
   }
 
   Future<ServiceModel> createService(ServiceModel service) async {
-    final res = await _client.post(ApiEndpoints.properties, body: service.toJson());
+    final res =
+        await _client.post(ApiEndpoints.properties, body: service.toJson());
     return _parseSingle(res.data);
   }
 
   Future<ServiceModel> updateService(ServiceModel service) async {
-    final res = await _client.patch(ApiEndpoints.propertyById(service.id), body: service.toJson());
-    return _parseSingle(res.data);
+    try {
+      final res = await _client.patch(ApiEndpoints.propertyById(service.id),
+          body: service.toJson());
+      return _parseSingle(res.data);
+    } catch (_) {
+      final res = await _client.put(ApiEndpoints.propertyById(service.id),
+          body: service.toJson());
+      return _parseSingle(res.data);
+    }
   }
 
   Future<ServiceModel> createServiceMultipart(
@@ -83,9 +97,9 @@ class ServiceRemoteDataSource {
 
     if (mainImageFile != null) {
       final fileName = mainImageFile.path.split('/').last;
-      final file = await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
+      final file =
+          await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
       map['mainImage'] = file;
-      map['image'] = file;
     } else if (service.imageUrl.isNotEmpty) {
       map['imageUrl'] = service.imageUrl;
     }
@@ -94,14 +108,17 @@ class ServiceRemoteDataSource {
       final multipartGallery = <MultipartFile>[];
       for (final f in galleryFiles) {
         final fileName = f.path.split('/').last;
-        multipartGallery.add(await MultipartFile.fromFile(f.path, filename: fileName));
+        multipartGallery
+            .add(await MultipartFile.fromFile(f.path, filename: fileName));
       }
       map['galleryImages'] = multipartGallery;
-      map['gallery'] = multipartGallery;
     }
 
     final formData = FormData.fromMap(map);
-    final res = await _client.post(ApiEndpoints.properties, body: formData);
+    final res = await _client.post(
+      ApiEndpoints.properties,
+      body: formData,
+    );
     return _parseSingle(res.data);
   }
 
@@ -130,14 +147,15 @@ class ServiceRemoteDataSource {
         'features': service.features,
         'featuresJson': jsonEncode(service.features),
       },
-      if (existingGalleryUrls.isNotEmpty) 'existingGalleryImages': existingGalleryUrls,
+      if (existingGalleryUrls.isNotEmpty)
+        'existingGalleryImages': existingGalleryUrls,
     };
 
     if (mainImageFile != null) {
       final fileName = mainImageFile.path.split('/').last;
-      final file = await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
+      final file =
+          await MultipartFile.fromFile(mainImageFile.path, filename: fileName);
       map['mainImage'] = file;
-      map['image'] = file;
     } else if (service.imageUrl.isNotEmpty) {
       map['imageUrl'] = service.imageUrl;
     }
@@ -146,22 +164,35 @@ class ServiceRemoteDataSource {
       final multipartGallery = <MultipartFile>[];
       for (final f in galleryFiles) {
         final fileName = f.path.split('/').last;
-        multipartGallery.add(await MultipartFile.fromFile(f.path, filename: fileName));
+        multipartGallery
+            .add(await MultipartFile.fromFile(f.path, filename: fileName));
       }
       map['galleryImages'] = multipartGallery;
-      map['gallery'] = multipartGallery;
     }
 
     final formData = FormData.fromMap(map);
-    final res = await _client.patch(ApiEndpoints.propertyById(service.id), body: formData);
-    return _parseSingle(res.data);
+    try {
+      final res = await _client.patch(
+        ApiEndpoints.propertyById(service.id),
+        body: formData,
+      );
+      return _parseSingle(res.data);
+    } catch (_) {
+      final res = await _client.put(
+        ApiEndpoints.propertyById(service.id),
+        body: formData,
+      );
+      return _parseSingle(res.data);
+    }
   }
 
   Future<void> deleteService(String id) async {
     await _client.delete(ApiEndpoints.propertyById(id));
   }
 
-  Future<void> deleteServiceImages(String propertyId, List<String> imageUrls) async {
-    await _client.delete('${ApiEndpoints.propertyById(propertyId)}/images', body: {'imageUrls': imageUrls});
+  Future<void> deleteServiceImages(
+      String propertyId, List<String> imageUrls) async {
+    await _client.delete('${ApiEndpoints.propertyById(propertyId)}/images',
+        body: {'imageUrls': imageUrls});
   }
 }

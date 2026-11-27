@@ -7,6 +7,7 @@ import 'package:bookease/core/constants/app_sizes.dart';
 import 'package:bookease/core/widgets/empty_state_view.dart';
 import 'package:bookease/core/widgets/shimmer_loading.dart';
 import 'package:bookease/core/widgets/ui_kit.dart';
+import 'package:bookease/features/auth/providers/auth_provider.dart';
 import 'package:bookease/features/customer/services/data/models/service_model.dart';
 import 'package:bookease/features/customer/services/providers/service_provider.dart';
 import 'package:bookease/features/provider/presentation/screens/service_form_screen.dart';
@@ -22,12 +23,15 @@ class MyServicesScreen extends StatelessWidget {
       MaterialPageRoute(builder: (_) => ServiceFormScreen(existing: existing)),
     );
     if (saved == true && context.mounted) {
+      final user = context.read<AuthProvider>().user;
+      context.read<ProviderServicesProvider>().load(user.id);
       context.read<ServiceProvider>().loadServices();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(existing == null
-              ? 'Service published. Customers can book it now.'
-              : 'Service updated.'),
+              ? 'Service published successfully.'
+              : 'Service updated successfully.'),
+          backgroundColor: AppColors.success,
         ),
       );
     }
@@ -46,7 +50,7 @@ class MyServicesScreen extends StatelessWidget {
         ),
         title: const Text('Delete service?', textAlign: TextAlign.center),
         content: Text(
-          '"${s.name}" will be removed for customers. Existing bookings are kept.',
+          '"${s.name}" will be removed for customers and deleted from backend. Existing bookings are kept.',
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.center,
@@ -67,8 +71,30 @@ class MyServicesScreen extends StatelessWidget {
       ),
     );
     if (ok != true || !context.mounted) return;
-    await context.read<ProviderServicesProvider>().delete(s.id);
-    if (context.mounted) context.read<ServiceProvider>().loadServices();
+
+    try {
+      final user = context.read<AuthProvider>().user;
+      await context.read<ProviderServicesProvider>().delete(s.id);
+      if (context.mounted) {
+        await context.read<ProviderServicesProvider>().load(user.id);
+        context.read<ServiceProvider>().loadServices();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Service deleted successfully.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not delete service: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override

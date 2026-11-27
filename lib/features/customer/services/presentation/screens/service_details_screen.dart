@@ -162,25 +162,25 @@ class _ServiceDetailsScreenState extends State<ServiceDetailsScreen> {
                 children: [
                   allImages[_selectedImageIdx].isEmpty
                       ? Container(
-                    color: Colors.grey.withAlpha(60),
-                    child: Icon(Icons.broken_image, size: 60.sp),
-                  )
+                          color: Colors.grey.withAlpha(60),
+                          child: Icon(Icons.broken_image, size: 60.sp),
+                        )
                       : Hero(
-                    tag: resolvedHeroTag,
-                    child: CachedNetworkImage(
-                      imageUrl: allImages[_selectedImageIdx],
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => ShimmerPlaceholder(
-                        width: double.infinity,
-                        height: 320.h,
-                        borderRadius: 0,
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey.withAlpha(60),
-                        child: Icon(Icons.broken_image, size: 60.sp),
-                      ),
-                    ),
-                  ),
+                          tag: resolvedHeroTag,
+                          child: CachedNetworkImage(
+                            imageUrl: allImages[_selectedImageIdx],
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => ShimmerPlaceholder(
+                              width: double.infinity,
+                              height: 320.h,
+                              borderRadius: 0,
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: Colors.grey.withAlpha(60),
+                              child: Icon(Icons.broken_image, size: 60.sp),
+                            ),
+                          ),
+                        ),
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -213,7 +213,7 @@ class _ServiceDetailsScreenState extends State<ServiceDetailsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: List.generate(
                             allImages.length,
-                                (idx) => GestureDetector(
+                            (idx) => GestureDetector(
                               onTap: () => setState(() => _selectedImageIdx = idx),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
@@ -234,9 +234,9 @@ class _ServiceDetailsScreenState extends State<ServiceDetailsScreen> {
                                   child: allImages[idx].isEmpty
                                       ? Container(color: Colors.grey.withAlpha(60))
                                       : CachedNetworkImage(
-                                    imageUrl: allImages[idx],
-                                    fit: BoxFit.cover,
-                                  ),
+                                          imageUrl: allImages[idx],
+                                          fit: BoxFit.cover,
+                                        ),
                                 ),
                               ),
                             ),
